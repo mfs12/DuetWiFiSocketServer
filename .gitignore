@@ -50,6 +50,8 @@ Temporary Items
 *.old
 .settings/language.settings.xml
 Bugs.txt
+cscope.out
+tags
 
 # Output folders
 /Release/

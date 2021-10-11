@@ -32,28 +32,28 @@ extern "C"
 #include "Listener.h"
 #include "Misc.h"
 
-const unsigned int ONBOARD_LED = D4;				// GPIO 2
-const bool ONBOARD_LED_ON = false;					// active low
-const uint32_t ONBOARD_LED_BLINK_INTERVAL = 500;	// ms
-const uint32_t TransferReadyTimeout = 10;			// how many milliseconds we allow for the Duet to set TransferReady low after the end of a transaction, before we assume that we missed seeing it
+static const unsigned int ONBOARD_LED = D4;				// GPIO 2
+static const bool ONBOARD_LED_ON = false;					// active low
+static const uint32_t ONBOARD_LED_BLINK_INTERVAL = 500;	// ms
+static const uint32_t TransferReadyTimeout = 10;			// how many milliseconds we allow for the Duet to set TransferReady low after the end of a transaction, before we assume that we missed seeing it
 
-const char * const MdnsProtocolNames[3] = { "HTTP", "FTP", "Telnet" };
-const char * const MdnsServiceStrings[3] = { "_http", "_ftp", "_telnet" };
-const char * const MdnsTxtRecords[2] = { "product=DuetWiFi", "version=" VERSION_MAIN };
-const unsigned int MdnsTtl = 10 * 60;			// same value as on the Duet 0.6/0.8.5
+static const char * const MdnsProtocolNames[3] = { "HTTP", "FTP", "Telnet" };
+static const char * const MdnsServiceStrings[3] = { "_http", "_ftp", "_telnet" };
+static const char * const MdnsTxtRecords[2] = { "product=DuetWiFi", "version=" VERSION_MAIN };
+static const unsigned int MdnsTtl = 10 * 60;			// same value as on the Duet 0.6/0.8.5
 
 #define array _ecv_array
 
-const uint32_t MaxConnectTime = 40 * 1000;		// how long we wait for WiFi to connect in milliseconds
-const uint32_t StatusReportMillis = 200;
+static const uint32_t MaxConnectTime = 40 * 1000;		// how long we wait for WiFi to connect in milliseconds
+static const uint32_t StatusReportMillis = 200;
 
-const int DefaultWiFiChannel = 6;
+static const int DefaultWiFiChannel = 6;
 
 // Global data
-char currentSsid[SsidLength + 1];
-char webHostName[HostNameLength + 1] = "Duet-WiFi";
+static char currentSsid[SsidLength + 1];
+static char webHostName[HostNameLength + 1] = "Duet-WiFi";
 
-DNSServer dns;
+static DNSServer dns;
 
 static const char* lastError = nullptr;
 static const char* prevLastError = nullptr;
@@ -78,7 +78,7 @@ static uint32_t transferBuffer[NumDwords(MaxDataLength + 1)];
 static const WirelessConfigurationData *ssidData = nullptr;
 
 // Look up a SSID in our remembered network list, return pointer to it if found
-const WirelessConfigurationData *RetrieveSsidData(const char *ssid, int *index = nullptr)
+static const WirelessConfigurationData *RetrieveSsidData(const char *ssid, int *index = nullptr)
 {
 	for (size_t i = 1; i <= MaxRememberedNetworks; ++i)
 	{
@@ -96,7 +96,7 @@ const WirelessConfigurationData *RetrieveSsidData(const char *ssid, int *index =
 }
 
 // Find an empty entry in the table of known networks
-bool FindEmptySsidEntry(int *index)
+static bool FindEmptySsidEntry(int *index)
 {
 	for (size_t i = 1; i <= MaxRememberedNetworks; ++i)
 	{
@@ -111,7 +111,7 @@ bool FindEmptySsidEntry(int *index)
 }
 
 // Check socket number in range, returning true if yes. Otherwise, set lastError and return false;
-bool ValidSocketNumber(uint8_t num)
+static bool ValidSocketNumber(uint8_t num)
 {
 	if (num < MaxConnections)
 	{
@@ -122,7 +122,7 @@ bool ValidSocketNumber(uint8_t num)
 }
 
 // Reset to default settings
-void FactoryReset()
+static void FactoryReset()
 {
 	WirelessConfigurationData temp;
 	memset(&temp, 0xFF, sizeof(temp));
@@ -134,7 +134,7 @@ void FactoryReset()
 }
 
 // Try to connect using the specified SSID and password
-void ConnectToAccessPoint(const WirelessConfigurationData& apData, bool isRetry)
+static void ConnectToAccessPoint(const WirelessConfigurationData& apData, bool isRetry)
 pre(currentState == NetworkState::idle)
 {
 	SafeStrncpy(currentSsid, apData.ssid, ARRAY_SIZE(currentSsid));
@@ -164,7 +164,7 @@ pre(currentState == NetworkState::idle)
 	}
 }
 
-void ConnectPoll()
+static void ConnectPoll()
 {
 	// The Arduino WiFi.status() call is fairly useless here because it discards too much information, so use the SDK API call instead
 	const uint8_t status = wifi_station_get_connect_status();
@@ -320,7 +320,7 @@ void ConnectPoll()
 	}
 }
 
-void StartClient(const char * array ssid)
+static void StartClient(const char * array ssid)
 pre(currentState == WiFiState::idle)
 {
 	ssidData = nullptr;
@@ -372,7 +372,7 @@ pre(currentState == WiFiState::idle)
 	ConnectToAccessPoint(*ssidData, false);
 }
 
-bool CheckValidSSID(const char * array s)
+static bool CheckValidSSID(const char * array s)
 {
 	size_t len = 0;
 	while (*s != 0)
@@ -391,7 +391,7 @@ bool CheckValidSSID(const char * array s)
 	return len != 0;
 }
 
-bool CheckValidPassword(const char * array s)
+static bool CheckValidPassword(const char * array s)
 {
 	size_t len = 0;
 	while (*s != 0)
@@ -411,7 +411,7 @@ bool CheckValidPassword(const char * array s)
 }
 
 // Check that the access point data is valid
-bool ValidApData(const WirelessConfigurationData &apData)
+static bool ValidApData(const WirelessConfigurationData &apData)
 {
 	// Check the IP address
 	if (apData.ip == 0 || apData.ip == 0xFFFFFFFF)
@@ -428,7 +428,7 @@ bool ValidApData(const WirelessConfigurationData &apData)
 	return CheckValidSSID(apData.ssid) && CheckValidPassword(apData.password);
 }
 
-void StartAccessPoint()
+static void StartAccessPoint()
 {
 	WirelessConfigurationData apData;
 	EEPROM.get(0, apData);
@@ -504,7 +504,7 @@ static union
 	uint32_t asDwords[headerDwords];	// to force alignment
 } messageHeaderOut;
 
-void GetServiceTxtEntries(struct mdns_service *service, void *txt_userdata)
+static void MdnsGetServiceTxtEntries(struct mdns_service *service, void *txt_userdata)
 {
 	for (size_t i = 0; i < ARRAY_SIZE(MdnsTxtRecords); i++)
 	{
@@ -513,7 +513,7 @@ void GetServiceTxtEntries(struct mdns_service *service, void *txt_userdata)
 }
 
 // Rebuild the mDNS services
-void RebuildServices()
+static void MdnsRebuildServices()
 {
 	for (struct netif *item = netif_list; item != nullptr; item = item->next)
 	{
@@ -526,7 +526,7 @@ void RebuildServices()
 			const uint16_t port = Listener::GetPortByProtocol(protocol);
 			if (port != 0)
 			{
-				service_get_txt_fn_t txtFunc = (protocol == 0/*HttpProtocol*/) ? GetServiceTxtEntries : nullptr;
+				service_get_txt_fn_t txtFunc = (protocol == 0/*HttpProtocol*/) ? MdnsGetServiceTxtEntries : nullptr;
 				mdns_resp_add_service(item, webHostName, MdnsServiceStrings[protocol], DNSSD_PROTO_TCP, port, MdnsTtl, txtFunc, nullptr);
 			}
 		}
@@ -535,7 +535,7 @@ void RebuildServices()
 	}
 }
 
-void RemoveMdnsServices()
+static void MdnsRemoveServices()
 {
 	for (struct netif *item = netif_list; item != nullptr; item = item->next)
 	{
@@ -546,7 +546,7 @@ void RemoveMdnsServices()
 // Send a response.
 // 'response' is the number of byes of response if positive, or the error code if negative.
 // Use only to respond to commands which don't include a data block, or when we don't want to read the data block.
-void ICACHE_RAM_ATTR SendResponse(int32_t response)
+static void ICACHE_RAM_ATTR SendResponse(int32_t response)
 {
 	(void)hspi.transfer32(response);
 	if (response > 0)
@@ -556,7 +556,7 @@ void ICACHE_RAM_ATTR SendResponse(int32_t response)
 }
 
 // This is called when the SAM is asking to transfer data
-void ICACHE_RAM_ATTR ProcessRequest()
+static void ICACHE_RAM_ATTR ProcessRequest()
 {
 	// Set up our own headers
 	messageHeaderIn.hdr.formatVersion = InvalidFormatVersion;
@@ -829,7 +829,7 @@ void ICACHE_RAM_ATTR ProcessRequest()
 				{
 					if (lcData.protocol < 3)			// if it's FTP, HTTP or Telnet protocol
 					{
-						RebuildServices();				// update the MDNS services
+						MdnsRebuildServices();				// update the MDNS services
 					}
 					debugPrintf("%sListening on port %u\n", (lcData.maxConnections == 0) ? "Stopped " : "", lcData.port);
 				}
@@ -849,7 +849,7 @@ void ICACHE_RAM_ATTR ProcessRequest()
 				ListenOrConnectData lcData;
 				hspi.transferDwords(nullptr, reinterpret_cast<uint32_t*>(&lcData), NumDwords(sizeof(lcData)));
 				Listener::StopListening(lcData.port);
-				RebuildServices();						// update the MDNS services
+				MdnsRebuildServices();						// update the MDNS services
 				debugPrintf("Stopped listening on port %u\n", lcData.port);
 			}
 			break;
@@ -992,13 +992,13 @@ void ICACHE_RAM_ATTR ProcessRequest()
 		case NetworkCommand::networkStop:					// disconnect from an access point, or close down our own access point
 			Connection::TerminateAll();						// terminate all connections
 			Listener::StopListening(0);						// stop listening on all ports
-			RebuildServices();								// remove the MDNS services
+			MdnsRebuildServices();								// remove the MDNS services
 			switch (currentState)
 			{
 			case WiFiState::connected:
 			case WiFiState::connecting:
 			case WiFiState::reconnecting:
-				RemoveMdnsServices();
+				MdnsRemoveServices();
 				delay(20);									// try to give lwip time to recover from stopping everything
 				WiFi.disconnect(true);
 				break;
@@ -1038,7 +1038,7 @@ void ICACHE_RAM_ATTR ProcessRequest()
 	}
 }
 
-void ICACHE_RAM_ATTR TransferReadyIsr()
+static void ICACHE_RAM_ATTR TransferReadyIsr()
 {
 	transferReadyChanged = true;
 }

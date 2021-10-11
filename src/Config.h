@@ -47,14 +47,13 @@ const uint8_t Backlog = 8;
 #define ARRAY_SIZE(_x) (sizeof(_x)/sizeof((_x)[0]))
 
 #ifdef DEBUG
-#define debugPrint(_str)			ets_printf("%s(%d): %s", __FILE__, __LINE__, _str)
-#define debugPrintf(_format, ...)	ets_printf("%s(%d): ", __FILE__, __LINE__); ets_printf(_format, __VA_ARGS__)
+#define debug(fmt, args...)	do { ets_printf("DBG %s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)
 #else
-#define debugPrint(_format)			do {} while(false)
-#define debugPrintf(_format, ...)	do {} while(false)
+#define debug(_format, ...)	do {} while(false)
 #endif
 
-#define debugPrintfAlways(fmt, args...)	do { ets_printf("%s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)
-#define debugPrintAlways(_str)			debugPrintfAlways(_str)
+#define info(fmt, args...)	do { ets_printf("INFO %s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)
+#define warn(fmt, args...)	do { ets_printf("WARN %s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)
+#define err(fmt, args...)	do { ets_printf("ERR %s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)
 
 #endif

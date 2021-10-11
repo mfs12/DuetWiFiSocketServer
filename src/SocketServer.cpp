@@ -150,7 +150,7 @@ pre(currentState == NetworkState::idle)
 	wifi_set_sleep_type(MODEM_SLEEP_T);
 #endif
 	WiFi.config(IPAddress(apData.ip), IPAddress(apData.gateway), IPAddress(apData.netmask), IPAddress(), IPAddress());
-	debugPrintf("Trying to connect to ssid \"%s\" with password \"%s\"\n", apData.ssid, apData.password);
+	debug("Trying to connect to ssid \"%s\" with password \"%s\"\n", apData.ssid, apData.password);
 	WiFi.begin(apData.ssid, apData.password);
 
 	if (isRetry)
@@ -213,7 +213,7 @@ static void ConnectPoll()
 				mdns_resp_netif_settings_changed(netif_list);	// STA is on first interface
 			}
 
-			debugPrint("Connected to AP\n");
+			debug("Connected to AP\n");
 			currentState = WiFiState::connected;
 			digitalWrite(ONBOARD_LED, ONBOARD_LED_ON);
 			break;
@@ -230,7 +230,7 @@ static void ConnectPoll()
 			SafeStrncat(lastConnectError, currentSsid, ARRAY_SIZE(lastConnectError));
 			lastError = lastConnectError;
 			connectErrorChanged = true;
-			debugPrint("Failed to connect to AP\n");
+			debug("Failed to connect to AP\n");
 
 			if (!retry)
 			{
@@ -286,7 +286,7 @@ static void ConnectPoll()
 			SafeStrncat(lastConnectError, error, ARRAY_SIZE(lastConnectError));
 			lastError = lastConnectError;
 			connectErrorChanged = true;
-			debugPrint("Lost connection to AP\n");
+			debug("Lost connection to AP\n");
 			break;
 		}
 		break;
@@ -341,7 +341,7 @@ pre(currentState == WiFiState::idle)
 		int8_t strongestNetwork = -1;
 		for (int8_t i = 0; i < num_ssids; ++i)
 		{
-			debugPrintfAlways("found network %s\n", WiFi.SSID(i).c_str());
+			info("found network %s\n", WiFi.SSID(i).c_str());
 			if (strongestNetwork < 0 || WiFi.RSSI(i) > WiFi.RSSI(strongestNetwork))
 			{
 				const WirelessConfigurationData *wp = RetrieveSsidData(WiFi.SSID(i).c_str(), nullptr);
@@ -443,31 +443,31 @@ static void StartAccessPoint()
 			ok = WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
 			if (ok)
 			{
-				debugPrintf("Starting AP %s with password \"%s\"\n", currentSsid, apData.password);
+				debug("Starting AP %s with password \"%s\"\n", currentSsid, apData.password);
 				ok = WiFi.softAP(currentSsid, apData.password, (apData.channel == 0) ? DefaultWiFiChannel : apData.channel);
 				if (!ok)
 				{
-					debugPrintAlways("Failed to start AP\n");
+					info("Failed to start AP\n");
 				}
 			}
 			else
 			{
-				debugPrintAlways("Failed to set AP config\n");
+				info("Failed to set AP config\n");
 			}
 		}
 		else
 		{
-			debugPrintAlways("Failed to set AP mode\n");
+			info("Failed to set AP mode\n");
 		}
 
 		if (ok)
 		{
-			debugPrintAlways("AP started\n");
+			info("AP started\n");
 			dns.setErrorReplyCode(DNSReplyCode::NoError);
 			if (!dns.start(53, "*", apData.ip))
 			{
 				lastError = "Failed to start DNS\n";
-				debugPrintf("%s\n", lastError);
+				debug("%s\n", lastError);
 			}
 			SafeStrncpy(currentSsid, apData.ssid, ARRAY_SIZE(currentSsid));
 			currentState = WiFiState::runningAsAccessPoint;
@@ -478,7 +478,7 @@ static void StartAccessPoint()
 		{
 			WiFi.mode(WIFI_OFF);
 			lastError = "Failed to start access point";
-			debugPrintf("%s\n", lastError);
+			debug("%s\n", lastError);
 			currentState = WiFiState::idle;
 			digitalWrite(ONBOARD_LED, !ONBOARD_LED_ON);
 		}
@@ -486,7 +486,7 @@ static void StartAccessPoint()
 	else
 	{
 		lastError = "invalid access point configuration";
-		debugPrintf("%s\n", lastError);
+		debug("%s\n", lastError);
 		currentState = WiFiState::idle;
 		digitalWrite(ONBOARD_LED, !ONBOARD_LED_ON);
 	}
@@ -831,12 +831,12 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 					{
 						MdnsRebuildServices();				// update the MDNS services
 					}
-					debugPrintf("%sListening on port %u\n", (lcData.maxConnections == 0) ? "Stopped " : "", lcData.port);
+					debug("%sListening on port %u\n", (lcData.maxConnections == 0) ? "Stopped " : "", lcData.port);
 				}
 				else
 				{
 					lastError = "Listen failed";
-					debugPrint("Listen failed\n");
+					debug("Listen failed\n");
 				}
 			}
 			break;
@@ -850,7 +850,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 				hspi.transferDwords(nullptr, reinterpret_cast<uint32_t*>(&lcData), NumDwords(sizeof(lcData)));
 				Listener::StopListening(lcData.port);
 				MdnsRebuildServices();						// update the MDNS services
-				debugPrintf("Stopped listening on port %u\n", lcData.port);
+				debug("Stopped listening on port %u\n", lcData.port);
 			}
 			break;
 #endif
@@ -1060,7 +1060,7 @@ void setup()
 	const rst_info *resetInfo = system_get_rst_info();
 	if (resetInfo->reason != 0 && resetInfo->reason != 6)	// if not power up or external reset
 	{
-		debugPrintfAlways("Restart after exception:%d flag:%d epc1:0x%08x epc2:0x%08x epc3:0x%08x excvaddr:0x%08x depc:0x%08x\n",
+		info("Restart after exception:%d flag:%d epc1:0x%08x epc2:0x%08x epc3:0x%08x excvaddr:0x%08x depc:0x%08x\n",
 			resetInfo->exccause, resetInfo->reason, resetInfo->epc1, resetInfo->epc2, resetInfo->epc3, resetInfo->excvaddr, resetInfo->depc);
 	}
 
@@ -1088,7 +1088,7 @@ void setup()
 	}
     netbiosns_init();
     lastError = nullptr;
-    debugPrint("Init completed\n");
+    debug("Init completed\n");
 	attachInterrupt(SamTfrReadyPin, TransferReadyIsr, CHANGE);
 	whenLastTransactionFinished = millis();
 	lastStatusReportTime = millis();

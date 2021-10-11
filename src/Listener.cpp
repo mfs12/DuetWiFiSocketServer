@@ -54,21 +54,21 @@ int Listener::Accept(tcp_pcb *pcb)
 				const int rslt = conn->Accept(pcb);
 				if (protocol == protocolFtpData)
 				{
-					debugPrintf("accept conn, stop listen on port %u\n", port);
+					debug("accept conn, stop listen on port %u\n", port);
 					Stop();						// don't listen for further connections
 				}
 				return rslt;
 			}
-			debugPrintfAlways("refused conn on port %u no free conn\n", port);
+			info("refused conn on port %u no free conn\n", port);
 		}
 		else
 		{
-			debugPrintfAlways("refused conn on port %u already %u conns\n", port, numConns);
+			info("refused conn on port %u already %u conns\n", port, numConns);
 		}
 	}
 	else
 	{
-		debugPrintfAlways("refused conn on port %u no pcb\n", port);
+		info("refused conn on port %u no pcb\n", port);
 	}
 	tcp_abort(pcb);
 	return ERR_ABRT;
@@ -98,13 +98,13 @@ void Listener::Stop()
 			if (maxConns != 0 && (p->ip == IPADDR_ANY || p->ip == ip))
 			{
 				// already listening, so nothing to do
-				debugPrintf("already listening on port %u\n", port);
+				debug("already listening on port %u\n", port);
 				return true;
 			}
 			if (maxConns == 0 || ip == IPADDR_ANY)
 			{
 				p->Stop();
-				debugPrintf("stopped listening on port %u\n", port);
+				debug("stopped listening on port %u\n", port);
 			}
 		}
 		p = n;
@@ -119,7 +119,7 @@ void Listener::Stop()
 	Listener * const p = Allocate();
 	if (p == nullptr)
 	{
-		debugPrintAlways("can't allocate listener\n");
+		info("can't allocate listener\n");
 		return false;
 	}
 	p->ip = ip;
@@ -132,7 +132,7 @@ void Listener::Stop()
 	if (tempPcb == nullptr)
 	{
 		Release(p);
-		debugPrintAlways("can't allocate PCB\n");
+		info("can't allocate PCB\n");
 		return false;
 	}
 
@@ -144,7 +144,7 @@ void Listener::Stop()
 	{
 		tcp_close(tempPcb);
 		Release(p);
-		debugPrintfAlways("can't bind PCB: %d\n", (int)rc);
+		info("can't bind PCB: %d\n", (int)rc);
 		return false;
 	}
 	p->listeningPcb = tcp_listen_with_backlog(tempPcb, Backlog);
@@ -152,7 +152,7 @@ void Listener::Stop()
 	{
 		tcp_close(tempPcb);
 		Release(p);
-		debugPrintAlways("tcp_listen failed\n");
+		info("tcp_listen failed\n");
 		return false;
 	}
 	tcp_arg(p->listeningPcb, p);
@@ -160,7 +160,7 @@ void Listener::Stop()
 	// Don't call tcp_err in the LISTEN state because lwip gives us an assertion failure at tcp.s(1760)
 	p->next = activeList;
 	activeList = p;
-	debugPrintf("listening on port %u\n", port);
+	debug("listening on port %u\n", port);
 	return true;
 }
 

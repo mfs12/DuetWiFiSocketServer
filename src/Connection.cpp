@@ -184,7 +184,7 @@ size_t Connection::Write(const uint8_t *data, size_t length, bool doPush, bool c
 	if (result != ERR_OK)
 	{
 		// We failed to write the data. See above for possible mitigations. For now we just terminate the connection.
-		debugPrintfAlways("Write fail len=%u err=%d\n", length, (int)result);
+		info("Write fail len=%u err=%d\n", length, (int)result);
 		Terminate(false);		// chrishamm: Not sure if this helps with LwIP v1.4.3 but it is mandatory for proper error handling with LwIP 2.0.3
 		return 0;
 	}
@@ -333,7 +333,7 @@ int Connection::ConnRecv(pbuf *p, int err)
 		pb = p;
 		readIndex = alreadyRead = 0;
 	}
-	//debugPrint("Packet rcvd\n");
+	//debug("Packet rcvd\n");
 	return ERR_OK;
 }
 

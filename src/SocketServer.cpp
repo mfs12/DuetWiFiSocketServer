@@ -23,7 +23,6 @@ extern "C"
 #include <ESP8266WiFi.h>
 #include <DNSServer.h>
 #include <EEPROM.h>
-#include "SocketServer.h"
 #include "Config.h"
 #include "PooledStrings.h"
 #include "HSPI.h"

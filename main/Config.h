@@ -3,6 +3,13 @@
 #ifndef CONFIG_H_INCLUDED
 #define CONFIG_H_INCLUDED
 
+#include <stdint.h>
+
+#define SOCKETSERVER_ENABLE 1
+#define CONNECTION_ENABLE 0
+#define HSPI_ENABLE 0
+#define LISTENER_ENABLE 0
+
 #define NO_WIFI_SLEEP	0
 
 #define VERSION_MAIN	"1.26"

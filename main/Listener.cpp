@@ -9,7 +9,10 @@
 #include "Connection.h"
 #include "Config.h"
 
+#if LISTENER_ENABLE
+
 #include <HardwareSerial.h>
+
 
 // C interface functions
 extern "C"
@@ -224,5 +227,7 @@ void Listener::Stop()
 	lst->next = freeList;
 	freeList = lst;
 }
+
+#endif
 
 // End

@@ -22,6 +22,8 @@
 #include "HSPI.h"
 #include <cmath>
 
+#if HSPI_ENABLE
+
 typedef union {
         uint32_t regValue;
         struct {
@@ -187,5 +189,7 @@ void ICACHE_RAM_ATTR HSPIClass::transferDwords_(const uint32_t * out, uint32_t *
         }
     }
 }
+
+#endif
 
 // End

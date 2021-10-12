@@ -7,8 +7,11 @@
 
 #include "Connection.h"
 #include "algorithm"			// for std::min
-#include "Arduino.h"			// for millis
 #include "Config.h"
+
+#if CONNECTION_ENABLE
+
+#include "Arduino.h"			// for millis
 
 const uint32_t MaxWriteTime = 2000;		// how long we wait for a write operation to complete before it is cancelled
 const uint32_t MaxAckTime = 4000;		// how long we wait for a connection to acknowledge the remaining data before it is closed
@@ -449,4 +452,5 @@ void Connection::FreePbuf()
 Connection *Connection::connectionList[MaxConnections] = { 0 };
 size_t Connection::nextConnectionToPoll = 0;
 
+#endif
 // End

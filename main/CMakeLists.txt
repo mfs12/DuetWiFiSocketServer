@@ -1,0 +1,9 @@
+idf_component_register(
+  SRCS
+    Connection.cpp
+    HSPI.cpp
+    Listener.cpp
+    Misc.cpp
+    SocketServer.cpp
+  INCLUDE_DIRS
+    ".")

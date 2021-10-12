@@ -7,26 +7,26 @@ This is a brief description howto setup the build environment for DuetWifiSocket
 ## Workspace
 
 - create a folder for the eclipse workspace
-- checkout the following repositories into workspace
+- checkout the following repository into workspace
   - git clone git@github.com:Duet3D/DuetWifiSocketServer.git
-  - git clone git@github.com:Duet3D/LwipESP8266.git
-  - git clone git@github.com:Duet3D/CoreESP8266.git
 
 ## Configuration
 
-- launch Eclipse
-- open created workspace
-- import projects
-- setup build environment variabels
-  - Windows -> Preferences -> C/C++ -> Build -> Build Variables
-  - add XtensaGccPath, i.e. /opt/xtensa-lx106-elf-gcc/bin or C:\toolchains\xtensa-lx106-elf-gcc\bin
-  - add EspToolPath, i.e. /usr/bin/esptool or C:\toolchains\esptool\esptool.exe
-  - add EspBootFile, i.e. /path/to/eboot.elf or C:\path\to\esptool.elf
-- set all projects to Release build configuration
+Setup the following environment variables. They are needed for the ESP8266 RTOS SDK.
+
+```
+export IDF_PATH=/path/to/lib/esp8266-rtos-sdk
+export PATH=/path/to/xtensa-lx106-elf-esp-toolchain/bin:$PATH
+```
 
 ## Build
 
-- run build
+To run the build execeute
+
+```
+$ cmake -B build
+$ make -C build all -j12
+```
 
 # Downloads
 
@@ -36,13 +36,13 @@ This is a brief description howto setup the build environment for DuetWifiSocket
 
 ## Esptool
 
-- https://github.com/igrr/esptool-ck/
+Esptool is needed to flash and communicate with the ESP8266 chip. It can be found at
+
+- https://github.com/espressif/esptool
 
 ## Sources
 
 - https://github.com/Duet3D/DuetWifiSocketServer
-- https://github.com/Duet3D/LwipESP8266
-- https://github.com/Duet3D/CoreESP8266
 
 ## Links
 

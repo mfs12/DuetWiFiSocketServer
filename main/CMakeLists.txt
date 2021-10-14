@@ -5,5 +5,6 @@ idf_component_register(
     Listener.cpp
     Misc.cpp
     SocketServer.cpp
+    WifiConfig.cpp
   INCLUDE_DIRS
     ".")

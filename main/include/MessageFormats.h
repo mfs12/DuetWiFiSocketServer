@@ -8,6 +8,9 @@
 #ifndef SRC_MESSAGEFORMATS_H_
 #define SRC_MESSAGEFORMATS_H_
 
+#include <stddef.h>
+#include <stdint.h>
+
 // Message formats exchanged over the SPI link between the SAM4E processor and the ESP8266 on the Duet WiFi
 // The ESP is the SPI master because it doesn't have a DMA facility. In practice, the ESP initiates an SPI transaction only when the SAM asks it to.
 // The SAM and the ESP first exchange headers. Then the ESP looks at the header, decodes the command from the SAM, and exchanges a response dword.

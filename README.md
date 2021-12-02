@@ -40,6 +40,22 @@ Esptool is needed to flash and communicate with the ESP8266 chip. It can be foun
 
 - https://github.com/espressif/esptool
 
+### Example
+
+```sh
+> esptool.py \
+    --chip esp8266 \
+    --port /dev/ttyUSB0 \
+    --baud 115200 \
+    --before default_reset \
+    --after hard_reset write_flash \
+    -z \
+    --flash_mode dio --flash_freq 40m --flash_size 2MB \
+    0x0 build/bootloader/bootloader.bin \
+    0x10000 build/dwss.bin \
+    0x8000 build/partition_table/partition-table.bin
+```
+
 ## Sources
 
 - https://github.com/Duet3D/DuetWifiSocketServer

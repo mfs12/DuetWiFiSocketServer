@@ -12,7 +12,7 @@
 
 #define NO_WIFI_SLEEP	0
 
-#define VERSION_MAIN	"1.26"
+#define VERSION_MAIN	"1.27-pre1"
 
 #if NO_WIFI_SLEEP
 #define VERSION_SLEEP	"-nosleep"
@@ -54,13 +54,13 @@ const uint8_t Backlog = 8;
 #define ARRAY_SIZE(_x) (sizeof(_x)/sizeof((_x)[0]))
 
 #ifdef DEBUG
-#define debug(fmt, args...)	do { ets_printf("DBG %s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)
+#define debug(fmt, args...)	do { printf("DBG %s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)
 #else
 #define debug(_format, ...)	do {} while(false)
 #endif
 
-#define info(fmt, args...)	do { ets_printf("INFO %s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)
-#define warn(fmt, args...)	do { ets_printf("WARN %s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)
-#define err(fmt, args...)	do { ets_printf("ERR %s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)
+#define info(fmt, args...)	do { printf("INFO %s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)
+#define warn(fmt, args...)	do { printf("WARN %s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)
+#define err(fmt, args...)	do { printf("ERR %s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)
 
 #endif

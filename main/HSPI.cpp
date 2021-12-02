@@ -19,10 +19,12 @@
  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#include "HSPI.h"
-#include <cmath>
+#include "Config.h"
 
 #if HSPI_ENABLE
+
+#include "HSPI.h"
+#include <cmath>
 
 typedef union {
         uint32_t regValue;

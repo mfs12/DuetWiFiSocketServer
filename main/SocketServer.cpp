@@ -22,7 +22,7 @@ extern "C" {
 
 void app_main(void)
 {
-	printf("Hello world!\n");
+	printf("DuetWebSocketServer\n");
 
 	/* Print chip information */
 	esp_chip_info_t chip_info;

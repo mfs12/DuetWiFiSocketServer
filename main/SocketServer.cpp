@@ -16,6 +16,8 @@
 #include "esp_system.h"
 #include "esp_spi_flash.h"
 
+#include "WifiClient.h"
+
 extern "C" {
 	void app_main(void);
 }
@@ -35,6 +37,8 @@ void app_main(void)
 
 	printf("%dMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
 			(chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
+
+	wifi_init_sta();
 
 	for (int i = 10; i >= 0; i--) {
 		printf("Restarting in %d seconds...\n", i);

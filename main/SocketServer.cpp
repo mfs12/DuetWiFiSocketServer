@@ -17,6 +17,7 @@
 #include "esp_spi_flash.h"
 
 #include "WifiClient.h"
+#include "DwssSpiffs.h"
 
 extern "C" {
 	void app_main(void);
@@ -39,6 +40,7 @@ void app_main(void)
 			(chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
 	wifi_init_sta();
+	dwss_spiffs_init();
 
 	for (int i = 10; i >= 0; i--) {
 		info("Restarting in %d seconds...\n", i);

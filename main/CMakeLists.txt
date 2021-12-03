@@ -7,6 +7,7 @@ idf_component_register(
     SocketServer.cpp
     WifiConfig.cpp
     DwssSpiffs.c
+    TcpServer.c
     WifiClient.c
   INCLUDE_DIRS
     ".")

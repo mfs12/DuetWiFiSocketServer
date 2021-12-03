@@ -16,8 +16,9 @@
 #include "esp_system.h"
 #include "esp_spi_flash.h"
 
-#include "WifiClient.h"
 #include "DwssSpiffs.h"
+#include "TcpServer.h"
+#include "WifiClient.h"
 
 extern "C" {
 	void app_main(void);
@@ -41,6 +42,7 @@ void app_main(void)
 
 	wifi_init_sta();
 	dwss_spiffs_init();
+	TcpServer_init();
 
 	for (int i = 10; i >= 0; i--) {
 		info("Restarting in %d seconds...\n", i);

@@ -45,10 +45,10 @@ static const int EspReqTransferPin = 0;  // GPIO0, output, indicates to the SAM 
 static const int SamTfrReadyPin = 4;     // GPIO4, input, indicates that SAM is ready to execute an SPI transaction
 
 
-const unsigned int ONBOARD_LED = D4;				// GPIO 2
-const bool ONBOARD_LED_ON = false;					// active low
-const uint32_t ONBOARD_LED_BLINK_INTERVAL = 500;	// ms
-const uint32_t TransferReadyTimeout = 10;			// how many milliseconds we allow for the Duet to set TransferReady low after the end of a transaction, before we assume that we missed seeing it
+static const unsigned int ONBOARD_LED = D4;				// GPIO 2
+static const bool ONBOARD_LED_ON = false;					// active low
+static const uint32_t ONBOARD_LED_BLINK_INTERVAL = 500;	// ms
+static const uint32_t TransferReadyTimeout = 10;			// how many milliseconds we allow for the Duet to set TransferReady low after the end of a transaction, before we assume that we missed seeing it
 
 enum MdnsProtocolEnum {
 	MdnsProtocolHttp = 0,
@@ -56,22 +56,22 @@ enum MdnsProtocolEnum {
 	MdnsProtocolTelnet = 2,
 };
 
-const char * const MdnsServiceStrings[3] = { "_http", "_ftp", "_telnet" };
-const char * const MdnsTxtRecords[2] = { "product=DuetWiFi", "version=" VERSION_MAIN };
-const unsigned int MdnsTtl = 10 * 60;			// same value as on the Duet 0.6/0.8.5
+static const char * const MdnsServiceStrings[3] = { "_http", "_ftp", "_telnet" };
+static const char * const MdnsTxtRecords[2] = { "product=DuetWiFi", "version=" VERSION_MAIN };
+static const unsigned int MdnsTtl = 10 * 60;			// same value as on the Duet 0.6/0.8.5
 
 #define array _ecv_array
 
-const uint32_t MaxConnectTime = 40 * 1000;		// how long we wait for WiFi to connect in milliseconds
-const uint32_t StatusReportMillis = 200;
+static const uint32_t MaxConnectTime = 40 * 1000;		// how long we wait for WiFi to connect in milliseconds
+static const uint32_t StatusReportMillis = 200;
 
-const int DefaultWiFiChannel = 6;
+static const int DefaultWiFiChannel = 6;
 
 // Global data
-char currentSsid[SsidLength + 1];
-char webHostName[HostNameLength + 1] = "Duet-WiFi";
+static char currentSsid[SsidLength + 1];
+static char webHostName[HostNameLength + 1] = "Duet-WiFi";
 
-DNSServer dns;
+static DNSServer dns;
 
 static const char* lastError = nullptr;
 static const char* prevLastError = nullptr;
@@ -96,7 +96,7 @@ static uint32_t transferBuffer[NumDwords(MaxDataLength + 1)];
 static const WirelessConfigurationData *ssidData = nullptr;
 
 // Look up a SSID in our remembered network list, return pointer to it if found
-const WirelessConfigurationData *RetrieveSsidData(const char *ssid, int *index = nullptr)
+static const WirelessConfigurationData *RetrieveSsidData(const char *ssid, int *index = nullptr)
 {
 	for (size_t i = 1; i <= MaxRememberedNetworks; ++i)
 	{
@@ -114,7 +114,7 @@ const WirelessConfigurationData *RetrieveSsidData(const char *ssid, int *index =
 }
 
 // Find an empty entry in the table of known networks
-bool FindEmptySsidEntry(int *index)
+static bool FindEmptySsidEntry(int *index)
 {
 	for (size_t i = 1; i <= MaxRememberedNetworks; ++i)
 	{
@@ -129,7 +129,7 @@ bool FindEmptySsidEntry(int *index)
 }
 
 // Check socket number in range, returning true if yes. Otherwise, set lastError and return false;
-bool ValidSocketNumber(uint8_t num)
+static bool ValidSocketNumber(uint8_t num)
 {
 	if (num < MaxConnections)
 	{
@@ -140,7 +140,7 @@ bool ValidSocketNumber(uint8_t num)
 }
 
 // Reset to default settings
-void FactoryReset()
+static void FactoryReset()
 {
 	WirelessConfigurationData temp;
 	memset(&temp, 0xFF, sizeof(temp));
@@ -152,7 +152,7 @@ void FactoryReset()
 }
 
 // Try to connect using the specified SSID and password
-void ConnectToAccessPoint(const WirelessConfigurationData& apData, bool isRetry)
+static void ConnectToAccessPoint(const WirelessConfigurationData& apData, bool isRetry)
 pre(currentState == NetworkState::idle)
 {
 	SafeStrncpy(currentSsid, apData.ssid, ARRAY_SIZE(currentSsid));
@@ -1056,7 +1056,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 	}
 }
 
-void ICACHE_RAM_ATTR TransferReadyIsr()
+static void ICACHE_RAM_ATTR TransferReadyIsr()
 {
 	transferReadyChanged = true;
 }

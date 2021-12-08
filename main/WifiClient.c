@@ -26,9 +26,9 @@
    If you'd rather not, just change the below entries to strings with
    the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
 */
-#define EXAMPLE_ESP_WIFI_SSID      CONFIG_ESP_WIFI_SSID
-#define EXAMPLE_ESP_WIFI_PASS      CONFIG_ESP_WIFI_PASSWORD
-#define EXAMPLE_ESP_MAXIMUM_RETRY  CONFIG_ESP_MAXIMUM_RETRY
+#define EXAMPLE_ESP_WIFI_SSID      CONFIG_DWSS_WIFI_SSID
+#define EXAMPLE_ESP_WIFI_PASS      CONFIG_DWSS_WIFI_PWD
+#define EXAMPLE_ESP_MAXIMUM_RETRY  CONFIG_DWSS_WIFI_MAX_RETRY
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;

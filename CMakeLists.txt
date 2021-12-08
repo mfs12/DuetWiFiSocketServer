@@ -2,6 +2,11 @@
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.5)
 
+find_program(CCACHE_PROGRAM ccache)
+if(CCACHE_PROGRAM)
+    set_property(GLOBAL PROPERTY RULE_LAUNCH_COMPILE "${CCACHE_PROGRAM}")
+endif()
+
 #get_filename_component(ENV_IDF_PATH "lib/esp8266-rtos-sdk" ABSOLUTE)
 #set(IDF_PATH "lib/esp8266-rtos-sdk")
 #set(IDF_PATH ${ENV_IDF_PATH} CACHE PATH "somehting new")

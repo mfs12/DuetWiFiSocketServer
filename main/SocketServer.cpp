@@ -40,13 +40,15 @@ void app_main(void)
 	info("%dMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
 			(chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
+	vTaskDelay(4000 / portTICK_PERIOD_MS);
+
 	wifi_init_sta();
 	dwss_spiffs_init();
 	TcpServer_init();
 
 	for (int i = 10; i >= 0; i--) {
 		info("Restarting in %d seconds...\n", i);
-		vTaskDelay(4000 / portTICK_PERIOD_MS);
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
 	}
 	info("Restarting now.\n");
 	fflush(stdout);

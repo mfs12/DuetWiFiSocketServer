@@ -37,6 +37,18 @@ extern "C"
 #include "Listener.h"
 #include "Misc.h"
 
+static const char* const firmwareVersion = VERSION_MAIN VERSION_DEBUG VERSION_SLEEP;
+
+// The SAM occasionally transmits incorrect data at 40MHz, so we now use 26.7MHz.
+// Due to the 15ns SCLK to MISO delay of the SAMD51, 2:1 is preferred over 1:2
+static const uint32_t defaultClockControl = 0x2002;		// 80MHz/3, mark:space 2:1
+
+// Pin numbers
+static const int SamSSPin = 15;          // GPIO15, output to SAM, SS pin for SPI transfer
+static const int EspReqTransferPin = 0;  // GPIO0, output, indicates to the SAM that we want to send something
+static const int SamTfrReadyPin = 4;     // GPIO4, input, indicates that SAM is ready to execute an SPI transaction
+
+
 const unsigned int ONBOARD_LED = D4;				// GPIO 2
 const bool ONBOARD_LED_ON = false;					// active low
 const uint32_t ONBOARD_LED_BLINK_INTERVAL = 500;	// ms

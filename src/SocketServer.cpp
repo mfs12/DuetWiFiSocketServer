@@ -15,12 +15,8 @@ extern "C"
 	#include "lwip/init.h"			// for version info
 	#include "lwip/stats.h"			// for stats_display()
 
-#if LWIP_VERSION_MAJOR == 2
 	#include "lwip/apps/mdns.h"
 	#include "lwip/apps/netbiosns.h"
-#else
-	#include "lwip/app/netbios.h"	// for NetBIOS support
-#endif
 }
 
 #include <cstdarg>
@@ -54,14 +50,15 @@ const bool ONBOARD_LED_ON = false;					// active low
 const uint32_t ONBOARD_LED_BLINK_INTERVAL = 500;	// ms
 const uint32_t TransferReadyTimeout = 10;			// how many milliseconds we allow for the Duet to set TransferReady low after the end of a transaction, before we assume that we missed seeing it
 
-#if LWIP_VERSION_MAJOR == 2
-const char * const MdnsProtocolNames[3] = { "HTTP", "FTP", "Telnet" };
+enum MdnsProtocolEnum {
+	MdnsProtocolHttp = 0,
+	MdnsProtocolFtp = 1,
+	MdnsProtocolTelnet = 2,
+};
+
 const char * const MdnsServiceStrings[3] = { "_http", "_ftp", "_telnet" };
 const char * const MdnsTxtRecords[2] = { "product=DuetWiFi", "version=" VERSION_MAIN };
 const unsigned int MdnsTtl = 10 * 60;			// same value as on the Duet 0.6/0.8.5
-#else
-# include <ESP8266mDNS.h>
-#endif
 
 #define array _ecv_array
 
@@ -185,7 +182,7 @@ pre(currentState == NetworkState::idle)
 	}
 }
 
-void ConnectPoll()
+static void ConnectPoll()
 {
 	// The Arduino WiFi.status() call is fairly useless here because it discards too much information, so use the SDK API call instead
 	const uint8_t status = wifi_station_get_connect_status();
@@ -231,11 +228,7 @@ void ConnectPoll()
 			}
 			else
 			{
-#if LWIP_VERSION_MAJOR == 2
 				mdns_resp_netif_settings_changed(netif_list);	// STA is on first interface
-#else
-				MDNS.begin(webHostName);
-#endif
 			}
 
 			debugPrint("Connected to AP\n");
@@ -497,11 +490,7 @@ void StartAccessPoint()
 			SafeStrncpy(currentSsid, apData.ssid, ARRAY_SIZE(currentSsid));
 			currentState = WiFiState::runningAsAccessPoint;
 			digitalWrite(ONBOARD_LED, ONBOARD_LED_ON);
-#if LWIP_VERSION_MAJOR == 2
 			mdns_resp_netif_settings_changed(netif_list->next);		// AP is on second interface
-#else
-			MDNS.begin(webHostName);
-#endif
 		}
 		else
 		{
@@ -533,9 +522,7 @@ static union
 	uint32_t asDwords[headerDwords];	// to force alignment
 } messageHeaderOut;
 
-#if LWIP_VERSION_MAJOR == 2
-
-void GetServiceTxtEntries(struct mdns_service *service, void *txt_userdata)
+static void GetServiceTxtEntries(struct mdns_service *service, void *txt_userdata)
 {
 	for (size_t i = 0; i < ARRAY_SIZE(MdnsTxtRecords); i++)
 	{
@@ -544,7 +531,7 @@ void GetServiceTxtEntries(struct mdns_service *service, void *txt_userdata)
 }
 
 // Rebuild the mDNS services
-void RebuildServices()
+static void RebuildServices()
 {
 	for (struct netif *item = netif_list; item != nullptr; item = item->next)
 	{
@@ -552,12 +539,12 @@ void RebuildServices()
 		mdns_resp_add_netif(item, webHostName, MdnsTtl);
 		mdns_resp_add_service(item, "echo", "_echo", DNSSD_PROTO_TCP, 0, 0, nullptr, nullptr);
 
-		for (size_t protocol = 0; protocol < 3; protocol++)
+		for (size_t protocol = 0; protocol < ARRAY_SIZE(MdnsServiceStrings); protocol++)
 		{
 			const uint16_t port = Listener::GetPortByProtocol(protocol);
 			if (port != 0)
 			{
-				service_get_txt_fn_t txtFunc = (protocol == 0/*HttpProtocol*/) ? GetServiceTxtEntries : nullptr;
+				service_get_txt_fn_t txtFunc = (protocol == MdnsProtocolHttp) ? GetServiceTxtEntries : nullptr;
 				mdns_resp_add_service(item, webHostName, MdnsServiceStrings[protocol], DNSSD_PROTO_TCP, port, MdnsTtl, txtFunc, nullptr);
 			}
 		}
@@ -566,7 +553,7 @@ void RebuildServices()
 	}
 }
 
-void RemoveMdnsServices()
+static void RemoveMdnsServices()
 {
 	for (struct netif *item = netif_list; item != nullptr; item = item->next)
 	{
@@ -574,56 +561,10 @@ void RemoveMdnsServices()
 	}
 }
 
-#else
-
-// Rebuild the MDNS server to advertise a single service
-void AdvertiseService(int service, uint16_t port)
-{
-	static int currentService = -1;
-	static const char * const serviceNames[] = { "http", "tcp", "ftp" };
-
-	if (service != currentService)
-	{
-		currentService = service;
-		MDNS.deleteServices();
-		if (service >= 0 && service < (int)ARRAY_SIZE(serviceNames))
-		{
-			const char* serviceName = serviceNames[service];
-			MDNS.addService(serviceName, "tcp", port);
-			MDNS.addServiceTxt(serviceName, "tcp", "product", "DuetWiFi");
-			MDNS.addServiceTxt(serviceName, "tcp", "version", firmwareVersion);
-		}
-	}
-}
-
-// Rebuild the mDNS services
-void RebuildServices()
-{
-	if (currentState == WiFiState::connected)		// MDNS server only works in station mode
-	{
-		// Unfortunately the official ESP8266 mDNS library only reports one service.
-		// I (chrishamm) tried to use the old mDNS responder, which is also capable of sending
-		// mDNS broadcasts, but the packets it generates are broken and thus not of use.
-		for (int service = 0; service < 3; ++service)
-		{
-			const uint16_t port = Listener::GetPortByProtocol(service);
-			if (port != 0)
-			{
-				AdvertiseService(service, port);
-				return;
-			}
-		}
-
-		AdvertiseService(-1, 0);		// no services to advertise
-	}
-}
-
-#endif
-
 // Send a response.
 // 'response' is the number of byes of response if positive, or the error code if negative.
 // Use only to respond to commands which don't include a data block, or when we don't want to read the data block.
-void ICACHE_RAM_ATTR SendResponse(int32_t response)
+static void ICACHE_RAM_ATTR SendResponse(int32_t response)
 {
 	(void)hspi.transfer32(response);
 	if (response > 0)
@@ -633,7 +574,7 @@ void ICACHE_RAM_ATTR SendResponse(int32_t response)
 }
 
 // This is called when the SAM is asking to transfer data
-void ICACHE_RAM_ATTR ProcessRequest()
+static void ICACHE_RAM_ATTR ProcessRequest()
 {
 	// Set up our own headers
 	messageHeaderIn.hdr.formatVersion = InvalidFormatVersion;
@@ -865,9 +806,7 @@ void ICACHE_RAM_ATTR ProcessRequest()
 				hspi.transferDwords(nullptr, transferBuffer, NumDwords(HostNameLength));
 				memcpy(webHostName, transferBuffer, HostNameLength);
 				webHostName[HostNameLength] = 0;			// ensure null terminator
-#if LWIP_VERSION_MAJOR == 2
 				netbiosns_set_name(webHostName);
-#endif
 			}
 			else
 			{
@@ -1077,12 +1016,7 @@ void ICACHE_RAM_ATTR ProcessRequest()
 			case WiFiState::connected:
 			case WiFiState::connecting:
 			case WiFiState::reconnecting:
-#if LWIP_VERSION_MAJOR == 2
 				RemoveMdnsServices();
-#endif
-#if LWIP_VERSION_MAJOR == 1
-				MDNS.deleteServices();
-#endif
 				delay(20);									// try to give lwip time to recover from stopping everything
 				WiFi.disconnect(true);
 				break;
@@ -1165,16 +1099,13 @@ void setup()
 
     Connection::Init();
     Listener::Init();
-#if LWIP_VERSION_MAJOR == 2
     mdns_resp_init();
 	for (struct netif *item = netif_list; item != nullptr; item = item->next)
 	{
 		mdns_resp_add_netif(item, webHostName, MdnsTtl);
 	}
     netbiosns_init();
-#else
-    netbios_init();
-#endif
+
     lastError = nullptr;
     debugPrint("Init completed\n");
 	attachInterrupt(SamTfrReadyPin, TransferReadyIsr, CHANGE);
@@ -1186,7 +1117,7 @@ void setup()
 void loop()
 {
 	digitalWrite(EspReqTransferPin, HIGH);				// tell the SAM we are ready to receive a command
-	system_soft_wdt_feed();								// kick the watchdog
+	system_soft_wdt_feed();						// kick the watchdog
 
 	if (   (lastError != prevLastError || connectErrorChanged || currentState != prevCurrentState)
 		|| ((lastError != nullptr || currentState != lastReportedState) && millis() - lastStatusReportTime > StatusReportMillis)

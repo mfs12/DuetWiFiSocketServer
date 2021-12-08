@@ -338,7 +338,7 @@ static void ConnectPoll()
 	}
 }
 
-void StartClient(const char * array ssid)
+static void StartClient(const char * array ssid)
 pre(currentState == WiFiState::idle)
 {
 	ssidData = nullptr;
@@ -390,7 +390,7 @@ pre(currentState == WiFiState::idle)
 	ConnectToAccessPoint(*ssidData, false);
 }
 
-bool CheckValidSSID(const char * array s)
+static bool CheckValidSSID(const char * array s)
 {
 	size_t len = 0;
 	while (*s != 0)
@@ -409,7 +409,7 @@ bool CheckValidSSID(const char * array s)
 	return len != 0;
 }
 
-bool CheckValidPassword(const char * array s)
+static bool CheckValidPassword(const char * array s)
 {
 	size_t len = 0;
 	while (*s != 0)
@@ -429,7 +429,7 @@ bool CheckValidPassword(const char * array s)
 }
 
 // Check that the access point data is valid
-bool ValidApData(const WirelessConfigurationData &apData)
+static bool ValidApData(const WirelessConfigurationData &apData)
 {
 	// Check the IP address
 	if (apData.ip == 0 || apData.ip == 0xFFFFFFFF)
@@ -446,7 +446,7 @@ bool ValidApData(const WirelessConfigurationData &apData)
 	return CheckValidSSID(apData.ssid) && CheckValidPassword(apData.password);
 }
 
-void StartAccessPoint()
+static void StartAccessPoint()
 {
 	WirelessConfigurationData apData;
 	EEPROM.get(0, apData);

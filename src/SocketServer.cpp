@@ -522,7 +522,7 @@ static union
 	uint32_t asDwords[headerDwords];	// to force alignment
 } messageHeaderOut;
 
-static void GetServiceTxtEntries(struct mdns_service *service, void *txt_userdata)
+static void MdnsGetServiceTxtEntries(struct mdns_service *service, void *txt_userdata)
 {
 	for (size_t i = 0; i < ARRAY_SIZE(MdnsTxtRecords); i++)
 	{
@@ -531,7 +531,7 @@ static void GetServiceTxtEntries(struct mdns_service *service, void *txt_userdat
 }
 
 // Rebuild the mDNS services
-static void RebuildServices()
+static void MdnsAddServices()
 {
 	for (struct netif *item = netif_list; item != nullptr; item = item->next)
 	{
@@ -544,7 +544,7 @@ static void RebuildServices()
 			const uint16_t port = Listener::GetPortByProtocol(protocol);
 			if (port != 0)
 			{
-				service_get_txt_fn_t txtFunc = (protocol == MdnsProtocolHttp) ? GetServiceTxtEntries : nullptr;
+				service_get_txt_fn_t txtFunc = (protocol == MdnsProtocolHttp) ? MdnsGetServiceTxtEntries : nullptr;
 				mdns_resp_add_service(item, webHostName, MdnsServiceStrings[protocol], DNSSD_PROTO_TCP, port, MdnsTtl, txtFunc, nullptr);
 			}
 		}
@@ -553,7 +553,7 @@ static void RebuildServices()
 	}
 }
 
-static void RemoveMdnsServices()
+static void MdnsRemoveServices()
 {
 	for (struct netif *item = netif_list; item != nullptr; item = item->next)
 	{
@@ -847,7 +847,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 				{
 					if (lcData.protocol < 3)			// if it's FTP, HTTP or Telnet protocol
 					{
-						RebuildServices();				// update the MDNS services
+						MdnsAddServices();				// update the MDNS services
 					}
 					debugPrintf("%sListening on port %u\n", (lcData.maxConnections == 0) ? "Stopped " : "", lcData.port);
 				}
@@ -867,7 +867,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 				ListenOrConnectData lcData;
 				hspi.transferDwords(nullptr, reinterpret_cast<uint32_t*>(&lcData), NumDwords(sizeof(lcData)));
 				Listener::StopListening(lcData.port);
-				RebuildServices();						// update the MDNS services
+				MdnsAddServices();						// update the MDNS services
 				debugPrintf("Stopped listening on port %u\n", lcData.port);
 			}
 			break;
@@ -1010,13 +1010,13 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 		case NetworkCommand::networkStop:					// disconnect from an access point, or close down our own access point
 			Connection::TerminateAll();						// terminate all connections
 			Listener::StopListening(0);						// stop listening on all ports
-			RebuildServices();								// remove the MDNS services
+			MdnsAddServices();								// remove the MDNS services
 			switch (currentState)
 			{
 			case WiFiState::connected:
 			case WiFiState::connecting:
 			case WiFiState::reconnecting:
-				RemoveMdnsServices();
+				MdnsRemoveServices();
 				delay(20);									// try to give lwip time to recover from stopping everything
 				WiFi.disconnect(true);
 				break;

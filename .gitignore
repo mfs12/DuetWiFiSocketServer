@@ -54,3 +54,8 @@ Bugs.txt
 # Output folders
 /Release/
 /Debug/
+
+# tag files
+tags
+cscope.out
+compile_commands.json

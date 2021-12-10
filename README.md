@@ -4,11 +4,21 @@ This is a brief description howto setup the build environment for DuetWifiSocket
 
 # Setup
 
-## Workspace
+## Toolchain
 
-- create a folder for the eclipse workspace
-- checkout the following repository into workspace
-  - git clone git@github.com:Duet3D/DuetWifiSocketServer.git
+Go to [ESP8266_RTOS_SDK](https://github.com/espressif/ESP8266_RTOS_SDK#get-toolchain),
+download and install latest toolchain.
+
+## Repository
+
+Clone repository and checkout submodules.
+
+```
+$ git clone git@github.com:Duet3D/DuetWifiSocketServer.git
+$ cd DuetWifiSocketServer
+$ git submodule init
+$ git submodule update --recursive
+```
 
 ## Configuration
 

@@ -17,6 +17,7 @@ message("env IDF_PATH: " $ENV{IDF_PATH})
 include(lib/esp8266-rtos-sdk/tools/cmake/project.cmake)
 project(dwss)
 
+add_custom_command( OUTPUT dwss.bin DEPENDS gen_project_binary )
 add_custom_command( OUTPUT dwss-image.bin
 	DEPENDS bootloader/bootloader.bin partition_table/partition-table.bin dwss.bin
 	COMMAND ${PROJECT_SOURCE_DIR}/tools/image-create.sh
@@ -28,5 +29,5 @@ add_custom_command( OUTPUT dwss-image.bin
 
 add_custom_target( image-create ALL
 	DEPENDS dwss-image.bin
-	COMMAND echo "*** image dwss-image.bin successfully created ***"
+	COMMAND echo "*** image successfully created ***"
 )

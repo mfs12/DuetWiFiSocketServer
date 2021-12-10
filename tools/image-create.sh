@@ -27,6 +27,11 @@ if test -n "$4"; then
   IMAGE=$4
 fi
 
+echo "Bootloader: $BOOTLOADER"
+echo "Partition table: $PARTITION"
+echo "App: $APP"
+echo "Image: $IMAGE"
+
 dd if=$BOOTLOADER of=$IMAGE
 dd if=$PARTITION of=$IMAGE oflag=$OFLAGS obs=$PARTITION_OFFSET seek=1
 dd if=$APP of=$IMAGE oflag=$OFLAGS obs=$APP_OFFSET seek=1

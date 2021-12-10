@@ -13,7 +13,7 @@ download and install latest toolchain.
 
 Clone repository and checkout submodules.
 
-```
+```sh
 $ git clone git@github.com:Duet3D/DuetWifiSocketServer.git
 $ cd DuetWifiSocketServer
 $ git submodule init
@@ -24,7 +24,7 @@ $ git submodule update --recursive
 
 Setup the following environment variables. They are needed for the ESP8266 RTOS SDK.
 
-```
+```sh
 export IDF_PATH=/path/to/lib/esp8266-rtos-sdk
 export PATH=/path/to/xtensa-lx106-elf-esp-toolchain/bin:$PATH
 ```
@@ -33,7 +33,7 @@ export PATH=/path/to/xtensa-lx106-elf-esp-toolchain/bin:$PATH
 
 To run the build execeute
 
-```
+```sh
 $ cmake -B build
 $ make -C build all -j12
 ```
@@ -53,7 +53,7 @@ Esptool is needed to flash and communicate with the ESP8266 chip. It can be foun
 ### Example
 
 ```sh
-> esptool.py \
+$ esptool.py \
     --chip esp8266 \
     --port /dev/ttyUSB0 \
     --baud 115200 \

@@ -56,13 +56,6 @@ void HSPIClass::InitMaster(uint8_t mode, uint32_t clockReg, bool msbFirst)
 	const bool CPOL = (mode & 0x02); ///< CPOL (Clock Polarity)
 	const bool CPHA = (mode & 0x01); ///< CPHA (Clock Phase)
 
-	/*
-	 SPI_MODE0 0x00 - CPOL: 0  CPHA: 0
-	 SPI_MODE1 0x01 - CPOL: 0  CPHA: 1
-	 SPI_MODE2 0x10 - CPOL: 1  CPHA: 0
-	 SPI_MODE3 0x11 - CPOL: 1  CPHA: 1
-	 */
-
 	if (CPHA)
 	{
 		SPI1U |= (SPIUSME | SPIUSSE);

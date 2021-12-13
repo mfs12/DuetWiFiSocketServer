@@ -42,34 +42,34 @@ static inline constexpr size_t NumDwords(size_t arg)
 enum class NetworkCommand : uint8_t
 {
 	nullCommand = 0,			// no command being sent
-	connAbort,					// terminate a connection rudely
-	connClose,					// close a connection gracefully
-	connCreate,					// create a new connection
-	connRead,					// read data from a connection
-	connWrite,					// write data to a connection
-	connGetStatus,				// get the status of a connection
+	connAbort = 1,					// terminate a connection rudely
+	connClose = 2,					// close a connection gracefully
+	connCreate = 3,					// create a new connection
+	connRead = 4,					// read data from a connection
+	connWrite = 5,					// write data to a connection
+	connGetStatus = 6,				// get the status of a connection
 
-	networkListen,				// listen for incoming connections to a port, or stop listening
-	unused_networkStopListening, // stop listening for connections to a port
+	networkListen = 7,				// listen for incoming connections to a port, or stop listening
+	unused_networkStopListening = 8, // stop listening for connections to a port
 
-	networkGetStatus,			// get the network connection status
-	networkAddSsid,				// add to our known access point list
-	networkDeleteSsid,			// delete a network from our access point list
-	networkListSsids_deprecated, // list the access points we know about - DEPRECATED
-	networkConfigureAccessPoint, // configure our own access point details
-	networkStartClient,			// connect to an access point
-	networkStartAccessPoint,	// run as an access point
-	networkStop,				// disconnect from an access point, or close down our own access point
-	networkFactoryReset,		// delete all SSID/password info and reset factory settings in EEPROM
-	networkSetHostName,			// set the host name
-	networkGetLastError,		// get the result of the last deferred command we sent
+	networkGetStatus = 9,			// get the network connection status
+	networkAddSsid = 10,				// add to our known access point list
+	networkDeleteSsid = 11,			// delete a network from our access point list
+	networkListSsids_deprecated = 12, // list the access points we know about - DEPRECATED
+	networkConfigureAccessPoint = 13, // configure our own access point details
+	networkStartClient = 14,			// connect to an access point
+	networkStartAccessPoint = 15,	// run as an access point
+	networkStop = 16,				// disconnect from an access point, or close down our own access point
+	networkFactoryReset = 17,		// delete all SSID/password info and reset factory settings in EEPROM
+	networkSetHostName = 18,			// set the host name
+	networkGetLastError = 19,		// get the result of the last deferred command we sent
 
-	diagnostics,				// print LwIP stats and possibly more values over the UART line
-	networkRetrieveSsidData,	// retrieve all the SSID data we have except the passwords
+	diagnostics = 20,				// print LwIP stats and possibly more values over the UART line
+	networkRetrieveSsidData = 21,	// retrieve all the SSID data we have except the passwords
 
 	// Added at version 1.24
-	networkSetTxPower,			// set transmitter power in units of 0.25db, max 82 = 20.5db
-	networkSetClockControl		// set clock control word - only provided because the ESP8266 documentation is not only crap but seriously wrong
+	networkSetTxPower = 22,			// set transmitter power in units of 0.25db, max 82 = 20.5db
+	networkSetClockControl = 23		// set clock control word - only provided because the ESP8266 documentation is not only crap but seriously wrong
 };
 
 // Message header sent from the SAM to the ESP

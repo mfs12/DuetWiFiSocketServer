@@ -24,40 +24,21 @@ extern "C" {
 	void app_main(void);
 }
 
-void app_main(void)
-{
-	info("DuetWebSocketServer\n");
+static void arduino_setup(void);
 
-	/* Print chip information */
-	esp_chip_info_t chip_info;
-	esp_chip_info(&chip_info);
-
-	info("This is ESP8266 chip with %d CPU cores, WiFi, ",
-			chip_info.cores);
-
-	info("silicon revision %d, ", chip_info.revision);
-
-	info("%dMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
-			(chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
-
-	vTaskDelay(4000 / portTICK_PERIOD_MS);
-
-	wifi_init_sta();
-	dwss_spiffs_init();
-	TcpServer_init();
-
-	for (int i = 10; i >= 0; i--) {
-		info("Restarting in %d seconds...\n", i);
-		vTaskDelay(1000 / portTICK_PERIOD_MS);
-	}
-	info("Restarting now.\n");
-	fflush(stdout);
-	esp_restart();
-}
+#if 1
 
 #include "ecv.h"
 #undef yield
 #undef array
+#define array _ecv_array
+
+#else
+
+#define pre(...)
+#define array
+
+#endif
 
 #include <cstdarg>
 #include "HSPI.h"
@@ -79,8 +60,6 @@ static const char * const MdnsProtocolNames[3] = { "HTTP", "FTP", "Telnet" };
 static const char * const MdnsServiceStrings[3] = { "_http", "_ftp", "_telnet" };
 static const char * const MdnsTxtRecords[2] = { "product=DuetWiFi", "version=" VERSION_MAIN };
 static const unsigned int MdnsTtl = 10 * 60;			// same value as on the Duet 0.6/0.8.5
-
-#define array _ecv_array
 
 static const uint32_t MaxConnectTime = 40 * 1000;		// how long we wait for WiFi to connect in milliseconds
 static const uint32_t StatusReportMillis = 200;
@@ -111,9 +90,58 @@ static uint32_t connectStartTime;
 static uint32_t lastStatusReportTime;
 static uint32_t transferBuffer[NumDwords(MaxDataLength + 1)];
 
-#else
 
 static const WirelessConfigurationData *ssidData = nullptr;
+
+static int app_init(void)
+{
+	// TODO
+	// init led gpio
+	// init spi interrupt pins
+	// init spi interface
+
+	wifi_init_sta();
+	dwss_spiffs_init();
+	TcpServer_init();
+
+	arduino_setup();
+
+	return 0;
+}
+
+void app_main(void)
+{
+	info("DuetWebSocketServer\n");
+
+	/* Print chip information */
+	esp_chip_info_t chip_info;
+	esp_chip_info(&chip_info);
+
+	info("This is ESP8266 chip with %d CPU cores, WiFi, ", chip_info.cores);
+
+	info("silicon revision %d, ", chip_info.revision);
+
+	info("%uMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
+			(chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
+
+	app_init();
+
+	vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+	bool led = false;
+	for (int i = 10; i >= 0; i--) {
+		digitalWrite(ONBOARD_LED, led);
+		led = !led;
+		info("Restarting in %d seconds...\n", i);
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
+		digitalWrite(ONBOARD_LED, led);
+		led = !led;
+		vTaskDelay(500 / portTICK_PERIOD_MS);
+	}
+	info("Restarting now.\n");
+	fflush(stdout);
+	esp_restart();
+}
 
 // Look up a SSID in our remembered network list, return pointer to it if found
 static const WirelessConfigurationData *RetrieveSsidData(const char *ssid, int *index = nullptr)

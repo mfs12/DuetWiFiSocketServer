@@ -62,6 +62,8 @@ void app_main(void)
 #include <cstdarg>
 #include "HSPI.h"
 
+#include "arduino/gpio.h"
+
 #include "include/MessageFormats.h"
 #include "Connection.h"
 #include "Listener.h"

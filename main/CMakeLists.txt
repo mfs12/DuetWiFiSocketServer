@@ -9,5 +9,6 @@ idf_component_register(
     DwssSpiffs.c
     TcpServer.c
     WifiClient.c
+    arduino/gpio.c
   INCLUDE_DIRS
     ".")

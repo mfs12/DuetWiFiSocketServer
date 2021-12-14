@@ -73,15 +73,6 @@ typedef unsigned int        size_t;
 #define NULL (void *)0
 #endif /* NULL */
 
-/* probably should not put STATUS here */
-typedef enum {
-    OK = 0,
-    FAIL,
-    PENDING,
-    BUSY,
-    CANCEL,
-} STATUS;
-
 #define BIT(nr)                 (1UL << (nr))
 
 #define REG_SET_BIT(_r, _b)  (*(volatile uint32_t*)(_r) |= (_b))

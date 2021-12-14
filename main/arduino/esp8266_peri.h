@@ -21,7 +21,7 @@
 #ifndef ESP8266_PERI_H_INCLUDED
 #define ESP8266_PERI_H_INCLUDED
 
-#include "c_types.h"
+#include "arduino/c_types.h"
 
 #define ESP8266_REG(addr) *((volatile uint32_t *)(0x60000000+(addr)))
 #define ESP8266_DREG(addr) *((volatile uint32_t *)(0x3FF00000+(addr)))

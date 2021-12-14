@@ -87,6 +87,7 @@ typedef unsigned int        size_t;
 #define DMEM_ATTR __attribute__((section(".bss")))
 #define SHMEM_ATTR
 
+//#define ICACHE_FLASH
 #ifdef ICACHE_FLASH
 #define ICACHE_FLASH_ATTR __attribute__((section(".irom0.text")))
 #define ICACHE_RAM_ATTR     __attribute__((section(".iram.text")))	// dc42 added

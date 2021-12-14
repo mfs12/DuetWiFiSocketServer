@@ -65,7 +65,9 @@ typedef double              real64;
 
 typedef unsigned int        size_t;
 
+#ifndef __packed
 #define __packed        __attribute__((packed))
+#endif
 
 #define LOCAL       static
 
@@ -75,14 +77,17 @@ typedef unsigned int        size_t;
 
 #define BIT(nr)                 (1UL << (nr))
 
+#ifndef REG_SET_BIT
 #define REG_SET_BIT(_r, _b)  (*(volatile uint32_t*)(_r) |= (_b))
+#endif
+#ifndef REG_CLR_BIT
 #define REG_CLR_BIT(_r, _b)  (*(volatile uint32_t*)(_r) &= ~(_b))
+#endif
 
 #define DMEM_ATTR __attribute__((section(".bss")))
 #define SHMEM_ATTR
 
 #ifdef ICACHE_FLASH
-#error
 #define ICACHE_FLASH_ATTR __attribute__((section(".irom0.text")))
 #define ICACHE_RAM_ATTR     __attribute__((section(".iram.text")))	// dc42 added
 #define ICACHE_RODATA_ATTR __attribute__((section(".irom.text")))

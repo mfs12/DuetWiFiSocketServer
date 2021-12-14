@@ -596,14 +596,19 @@ static void MdnsRemoveServices()
 }
 
 // Send a response.
-// 'response' is the number of byes of response if positive, or the error code if negative.
+// 'response' is the number of bytes of response if positive, or the error code if negative.
 // Use only to respond to commands which don't include a data block, or when we don't want to read the data block.
-static void ICACHE_RAM_ATTR SendResponse(int32_t response)
+static void ICACHE_RAM_ATTR SendErrorResponse(int32_t error)
 {
-	(void)hspi.transfer32(response);
-	if (response > 0)
+	(void)hspi.transfer32(error);
+}
+
+static void ICACHE_RAM_ATTR SendResponse(const uint32_t *buffer, size_t size)
+{
+	(void)hspi.transfer32(size);
+	if (size > 0)
 	{
-		hspi.transferDwords(transferBuffer, nullptr, NumDwords((size_t)response));
+		hspi.transferDwords(buffer, nullptr, NumDwords(size));
 	}
 }
 
@@ -625,11 +630,11 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 
 	if (messageHeaderIn.hdr.formatVersion != MyFormatVersion)
 	{
-		SendResponse(ResponseBadRequestFormatVersion);
+		SendErrorResponse(ResponseBadRequestFormatVersion);
 	}
 	else if (messageHeaderIn.hdr.dataLength > MaxDataLength)
 	{
-		SendResponse(ResponseBadDataLength);
+		SendErrorResponse(ResponseBadDataLength);
 	}
 	else
 	{
@@ -639,7 +644,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 		switch (messageHeaderIn.hdr.command)
 		{
 		case NetworkCommand::nullCommand:					// no command being sent, SAM just wants the network status
-			SendResponse(ResponseEmpty);
+			SendErrorResponse(ResponseEmpty);
 			break;
 
 		case NetworkCommand::networkStartClient:			// connect to an access point
@@ -655,7 +660,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 			}
 			else
 			{
-				SendResponse(ResponseWrongState);
+				SendErrorResponse(ResponseWrongState);
 			}
 			break;
 
@@ -667,7 +672,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 			}
 			else
 			{
-				SendResponse(ResponseWrongState);
+				SendErrorResponse(ResponseWrongState);
 			}
 			break;
 
@@ -701,12 +706,12 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 				response->zero1 = 0;
 				response->zero2 = 0;
 				response->vcc = system_get_vdd33();
-			    wifi_get_macaddr((runningAsAp) ? SOFTAP_IF : STATION_IF, response->macAddress);
-			    SafeStrncpy(response->versionText, firmwareVersion, sizeof(response->versionText));
-			    SafeStrncpy(response->hostName, webHostName, sizeof(response->hostName));
-			    SafeStrncpy(response->ssid, currentSsid, sizeof(response->ssid));
-			    response->clockReg = SPI1CLK;
-				SendResponse(sizeof(NetworkStatusResponse));
+				wifi_get_macaddr((runningAsAp) ? SOFTAP_IF : STATION_IF, response->macAddress);
+				SafeStrncpy(response->versionText, firmwareVersion, sizeof(response->versionText));
+				SafeStrncpy(response->hostName, webHostName, sizeof(response->hostName));
+				SafeStrncpy(response->ssid, currentSsid, sizeof(response->ssid));
+				response->clockReg = SPI1CLK;
+				SendErrorResponse(sizeof(NetworkStatusResponse));
 			}
 			break;
 
@@ -744,7 +749,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 			}
 			else
 			{
-				SendResponse(ResponseBadDataLength);
+				SendErrorResponse(ResponseBadDataLength);
 			}
 			break;
 
@@ -769,14 +774,14 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 			}
 			else
 			{
-				SendResponse(ResponseBadDataLength);
+				SendErrorResponse(ResponseBadDataLength);
 			}
 			break;
 
 		case NetworkCommand::networkRetrieveSsidData:	// list the access points we know about, including our own access point details
 			if (dataBufferAvailable < ReducedWirelessConfigurationDataSize)
 			{
-				SendResponse(ResponseBufferTooSmall);
+				SendErrorResponse(ResponseBufferTooSmall);
 			}
 			else
 			{
@@ -796,7 +801,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 					}
 				}
 				const size_t numBytes = p - reinterpret_cast<char*>(transferBuffer);
-				SendResponse(numBytes);
+				SendResponse(transferBuffer, numBytes);
 			}
 			break;
 
@@ -824,11 +829,11 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 				const size_t numBytes = p - reinterpret_cast<char*>(transferBuffer);
 				if (numBytes <= dataBufferAvailable)
 				{
-					SendResponse(numBytes);
+					SendResponse(transferBuffer, numBytes);
 				}
 				else
 				{
-					SendResponse(ResponseBufferTooSmall);
+					SendErrorResponse(ResponseBufferTooSmall);
 				}
 			}
 			break;
@@ -844,14 +849,14 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 			}
 			else
 			{
-				SendResponse(ResponseBadDataLength);
+				SendErrorResponse(ResponseBadDataLength);
 			}
 			break;
 
 		case NetworkCommand::networkGetLastError:
 			if (lastError == nullptr)
 			{
-				SendResponse(0);
+				SendErrorResponse(ResponseEmpty);
 			}
 			else
 			{
@@ -859,11 +864,11 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 				if (dataBufferAvailable >= len)
 				{
 					strcpy(reinterpret_cast<char*>(transferBuffer), lastError);		// copy to 32-bit aligned buffer
-					SendResponse(len);
+					SendResponse(transferBuffer, len);
 				}
 				else
 				{
-					SendResponse(ResponseBufferTooSmall);
+					SendErrorResponse(ResponseBufferTooSmall);
 				}
 				lastError = nullptr;
 			}
@@ -984,7 +989,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 			break;
 
 		case NetworkCommand::diagnostics:					// print some debug info over the UART line
-			SendResponse(ResponseEmpty);
+			SendErrorResponse(ResponseEmpty);
 			deferCommand = true;							// we need to send the diagnostics after we have sent the response, so the SAM is ready to receive them
 			break;
 
@@ -994,11 +999,11 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 				if (txPower <= 82)
 				{
 					system_phy_set_max_tpw(txPower);
-					SendResponse(ResponseEmpty);
+					SendErrorResponse(ResponseEmpty);
 				}
 				else
 				{
-					SendResponse(ResponseBadParameter);
+					SendErrorResponse(ResponseBadParameter);
 				}
 			}
 			break;
@@ -1011,7 +1016,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 		case NetworkCommand::connCreate:					// create a connection
 			// Not implemented yet
 		default:
-			SendResponse(ResponseUnknownCommand);
+			SendErrorResponse(ResponseUnknownCommand);
 			break;
 		}
 	}

@@ -1,12 +1,12 @@
 #ifndef ARDUINO_GPIO_H
 #define ARDUINO_GPIO_H 1
 
-#include "arduino/c_types.h"
-
 
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#include "arduino/c_types.h"
 
 #define HIGH 0x1
 #define LOW  0x0

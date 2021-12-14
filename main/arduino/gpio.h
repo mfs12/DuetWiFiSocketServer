@@ -1,9 +1,12 @@
 #ifndef ARDUINO_GPIO_H
 #define ARDUINO_GPIO_H 1
 
-#include "Config.h"
+#include "arduino/c_types.h"
 
-#include "arduino/esp8266_peri.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 #define HIGH 0x1
 #define LOW  0x0
@@ -23,7 +26,11 @@
 #define FUNCTION_4        0x48
 
 void pinMode(uint8_t pin, uint8_t mode);
-void ICACHE_RAM_ATTR digitalWrite(uint8_t pin, uint8_t val);
-int ICACHE_RAM_ATTR digitalRead(uint8_t pin);
+void digitalWrite(uint8_t pin, uint8_t val);
+int digitalRead(uint8_t pin);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif /* ifndef ARDUINO_GPIO_H */

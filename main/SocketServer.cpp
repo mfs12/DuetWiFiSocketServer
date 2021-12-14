@@ -55,28 +55,11 @@ void app_main(void)
 	esp_restart();
 }
 
-#else
-
 #include "ecv.h"
 #undef yield
 #undef array
 
-extern "C"
-{
-	#include "user_interface.h"     // for struct rst_info
-	#include "lwip/init.h"			// for version info
-	#include "lwip/stats.h"			// for stats_display()
-
-	#include "lwip/apps/mdns.h"
-	#include "lwip/apps/netbiosns.h"
-}
-
 #include <cstdarg>
-#include <ESP8266WiFi.h>
-#include <DNSServer.h>
-#include <EEPROM.h>
-#include "Config.h"
-#include "PooledStrings.h"
 #include "HSPI.h"
 
 #include "include/MessageFormats.h"
@@ -84,6 +67,7 @@ extern "C"
 #include "Listener.h"
 #include "Misc.h"
 
+static const uint8_t D4   = 2;
 static const unsigned int ONBOARD_LED = D4;				// GPIO 2
 static const bool ONBOARD_LED_ON = false;					// active low
 static const uint32_t ONBOARD_LED_BLINK_INTERVAL = 500;	// ms
@@ -105,8 +89,6 @@ static const int DefaultWiFiChannel = 6;
 static char currentSsid[SsidLength + 1];
 static char webHostName[HostNameLength + 1] = "Duet-WiFi";
 
-static DNSServer dns;
-
 static const char* lastError = nullptr;
 static const char* prevLastError = nullptr;
 static uint32_t whenLastTransactionFinished = 0;
@@ -126,6 +108,8 @@ static HSPIClass hspi;
 static uint32_t connectStartTime;
 static uint32_t lastStatusReportTime;
 static uint32_t transferBuffer[NumDwords(MaxDataLength + 1)];
+
+#else
 
 static const WirelessConfigurationData *ssidData = nullptr;
 

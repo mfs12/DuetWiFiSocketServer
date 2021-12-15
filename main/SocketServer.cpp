@@ -47,15 +47,15 @@
 
 #define millis xTaskGetTickCount
 
-static const unsigned int ONBOARD_LED = 2;				// GPIO 2
-static const bool ONBOARD_LED_ON = false;					// active low
+static const gpio_num_t ONBOARD_LED = GPIO_NUM_2;	// active low
+static const bool ONBOARD_LED_ON = false;
 static const uint32_t ONBOARD_LED_BLINK_INTERVAL = 500;	// ms
 static const uint32_t TransferReadyTimeout = 10;			// how many milliseconds we allow for the Duet to set TransferReady low after the end of a transaction, before we assume that we missed seeing it
 
 // Pin numbers
-static const gpio_num_t SamSSPin = GPIO_NUM_15;          // GPIO15, output to SAM, SS pin for SPI transfer
-static const gpio_num_t EspReqTransferPin = GPIO_NUM_0;  // GPIO0, output, indicates to the SAM that we want to send something
-static const gpio_num_t SamTfrReadyPin = GPIO_NUM_4;     // GPIO4, input, indicates that SAM is ready to execute an SPI transaction
+static const gpio_num_t SamCsPin = GPIO_NUM_15;          // output to SAM, SS pin for SPI transfer, active low
+static const gpio_num_t EspReqTransferPin = GPIO_NUM_0;  // output, indicates to the SAM that we want to send something
+static const gpio_num_t SamTfrReadyPin = GPIO_NUM_4;     // input, indicates that SAM is ready to execute an SPI transaction
 
 
 static const char * const MdnsProtocolNames[3] = { "HTTP", "FTP", "Telnet" };
@@ -142,13 +142,13 @@ void app_main(void)
 	bool led = false;
 #if 1
 
-	gpio_set_level(SamSSPin, 1);
+	gpio_set_level(SamCsPin, 1);
 	gpio_set_level(EspReqTransferPin, 1);
 
 	for (;;) {
 		debug("led test %d\n", led);
 		//digitalWrite(ONBOARD_LED, led);
-		gpio_set_level(GPIO_NUM_2, led ? 0 : 1);
+		gpio_set_level(ONBOARD_LED, led ? 0 : 1);
 		led = !led;
 		gpio_set_level(EspReqTransferPin, led);
 		//arduino_loop();
@@ -690,7 +690,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 	messageHeaderOut.hdr.state = currentState;
 
 	// Begin the transaction
-	digitalWrite(SamSSPin, LOW);            // assert CS to SAM
+	digitalWrite(SamCsPin, LOW);            // assert CS to SAM
 	hspi.beginTransaction();
 
 	// Exchange headers, except for the last dword which will contain our response
@@ -719,7 +719,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 	bool deferCommand = false;
 
 	// Begin the transaction
-	digitalWrite(SamSSPin, LOW);            // assert CS to SAM
+	digitalWrite(SamCsPin, LOW);            // assert CS to SAM
 	hspi.beginTransaction();
 
 	// Exchange headers, except for the last dword which will contain our response
@@ -1118,7 +1118,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 		}
 	}
 
-	digitalWrite(SamSSPin, HIGH);     						// de-assert CS to SAM to end the transaction and tell SAM the transfer is complete
+	digitalWrite(SamCsPin, HIGH);     						// de-assert CS to SAM to end the transaction and tell SAM the transfer is complete
 	hspi.endTransaction();
 
 	// If we deferred the command until after sending the response (e.g. because it may take some time to execute), complete it now
@@ -1211,7 +1211,7 @@ static void arduino_setup(void)
 	gpio_config_t led_gpio;
 	led_gpio.intr_type = GPIO_INTR_DISABLE;
 	led_gpio.mode = GPIO_MODE_OUTPUT;
-	led_gpio.pin_bit_mask = BIT(GPIO_NUM_2);
+	led_gpio.pin_bit_mask = BIT(ONBOARD_LED);
 	led_gpio.pull_down_en = GPIO_PULLDOWN_DISABLE;
 	led_gpio.pull_up_en = GPIO_PULLUP_DISABLE;
 	err = gpio_config(&led_gpio);
@@ -1223,7 +1223,7 @@ static void arduino_setup(void)
 	gpio_config_t cs_gpio;
 	cs_gpio.intr_type = GPIO_INTR_DISABLE;
 	cs_gpio.mode = GPIO_MODE_OUTPUT;
-	cs_gpio.pin_bit_mask = BIT(SamSSPin);
+	cs_gpio.pin_bit_mask = BIT(SamCsPin);
 	cs_gpio.pull_down_en = GPIO_PULLDOWN_DISABLE;
 	cs_gpio.pull_up_en = GPIO_PULLUP_DISABLE;
 	err = gpio_config(&cs_gpio);
@@ -1232,7 +1232,7 @@ static void arduino_setup(void)
 		return;
 	}
 
-	gpio_set_level(SamSSPin, 1);
+	gpio_set_level(SamCsPin, 1);
 
 	gpio_config_t transfer_gpio;
 	transfer_gpio.intr_type = GPIO_INTR_DISABLE;
@@ -1272,8 +1272,8 @@ static void arduino_setup(void)
 	pinMode(SamTfrReadyPin, INPUT);
 	pinMode(EspReqTransferPin, OUTPUT);
 	digitalWrite(EspReqTransferPin, LOW);				// not ready to transfer data yet
-	pinMode(SamSSPin, OUTPUT);
-	digitalWrite(SamSSPin, HIGH);
+	pinMode(SamCsPin, OUTPUT);
+	digitalWrite(SamCsPin, HIGH);
 
 	hspi.InitMaster(SPI_MODE1, defaultClockControl, true);
 #endif
@@ -1306,8 +1306,8 @@ static void arduino_setup(void)
     pinMode(SamTfrReadyPin, INPUT);
     pinMode(EspReqTransferPin, OUTPUT);
     digitalWrite(EspReqTransferPin, LOW);				// not ready to transfer data yet
-    pinMode(SamSSPin, OUTPUT);
-    digitalWrite(SamSSPin, HIGH);
+    pinMode(SamCsPin, OUTPUT);
+    digitalWrite(SamCsPin, HIGH);
 
     // Set up the fast SPI channel
     hspi.InitMaster(SPI_MODE1, defaultClockControl, true);

@@ -6,7 +6,7 @@
 #include <stdint.h>
 
 #define SOCKETSERVER_ENABLE 1
-#define CONNECTION_ENABLE 0
+#define CONNECTION_ENABLE 1
 #define HSPI_ENABLE 1
 #define LISTENER_ENABLE 0
 

@@ -11,7 +11,9 @@
 
 #if CONNECTION_ENABLE
 
-#include "Arduino.h"			// for millis
+#include <cstring>
+
+#define millis xTaskGetTickCount
 
 const uint32_t MaxWriteTime = 2000;		// how long we wait for a write operation to complete before it is cancelled
 const uint32_t MaxAckTime = 4000;		// how long we wait for a connection to acknowledge the remaining data before it is closed
@@ -79,7 +81,7 @@ void Connection::Close()
 			SetState(ConnState::closePending);		// wait for the remaining data to be sent before closing
 			break;
 		}
-		// no break
+		[[fallthrough]];
 	case ConnState::otherEndClosed:					// the other end has already closed the connection
 	case ConnState::closeReady:						// the other end has closed and we were already closePending
 	default:										// should not happen
@@ -292,7 +294,7 @@ int Connection::Accept(tcp_pcb *pcb)
 	SetState(ConnState::connected);
 	localPort = pcb->local_port;
 	remotePort = pcb->remote_port;
-	remoteIp = pcb->remote_ip.addr;
+	remoteIp = pcb->remote_ip.u_addr.ip4.addr;
 	writeTimer = closeTimer = 0;
 	unAcked = readIndex = alreadyRead = 0;
 

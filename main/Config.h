@@ -7,7 +7,7 @@
 
 #define SOCKETSERVER_ENABLE 1
 #define CONNECTION_ENABLE 0
-#define HSPI_ENABLE 0
+#define HSPI_ENABLE 1
 #define LISTENER_ENABLE 0
 
 #define NO_WIFI_SLEEP	0

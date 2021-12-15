@@ -11,10 +11,6 @@
 
 #if LISTENER_ENABLE
 
-#include <HardwareSerial.h>
-
-
-// C interface functions
 extern "C"
 {
 	#include "lwip/tcp.h"
@@ -140,7 +136,7 @@ void Listener::Stop()
 	}
 
 	ip_addr_t tempIp;
-	tempIp.addr = ip;
+	tempIp.u_addr.ip4.addr = ip;
 	tempPcb->so_options |= SOF_REUSEADDR;			// not sure we need this, but the Arduino HTTP server does it
 	err_t rc = tcp_bind(tempPcb, &tempIp, port);
 	if (rc != ERR_OK)

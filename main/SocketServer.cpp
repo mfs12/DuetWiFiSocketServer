@@ -137,26 +137,44 @@ void app_main(void)
 
 	app_init();
 
-	vTaskDelay(1000 / portTICK_PERIOD_MS);
+	vTaskDelay(2000 / portTICK_PERIOD_MS);
 
 	bool led = false;
 #if 1
 
-	gpio_set_level(SamCsPin, 1);
+	// esp is ready
 	gpio_set_level(EspReqTransferPin, 1);
+	vTaskDelay(100 / portTICK_PERIOD_MS);
 
 	for (;;) {
-		debug("led test %d\n", led);
-		//digitalWrite(ONBOARD_LED, led);
+		// toggle led
 		gpio_set_level(ONBOARD_LED, led ? 0 : 1);
 		led = !led;
-		gpio_set_level(EspReqTransferPin, led);
-		//arduino_loop();
-		if (transferReadyChanged) {
-			debug("ready pin changed\n");
-			transferReadyChanged = false;
+
+		if (!gpio_get_level(SamTfrReadyPin)) {
+			debug("rrf not ready\n");
+			vTaskDelay(500 / portTICK_PERIOD_MS);
+			continue;
 		}
-		vTaskDelay(1000 / portTICK_PERIOD_MS);
+		debug("rrf ready\n");
+
+		// activate spi CS
+		gpio_set_level(SamCsPin, 0);
+
+		// TODO do spi communication
+		vTaskDelay(500 / portTICK_PERIOD_MS);
+
+		// deactivated spi CS
+		gpio_set_level(SamCsPin, 1);
+
+		// error detected
+		gpio_set_level(EspReqTransferPin, 0);
+		vTaskDelay(10 / portTICK_PERIOD_MS);
+		gpio_set_level(EspReqTransferPin, 1);
+		vTaskDelay(10 / portTICK_PERIOD_MS);
+
+		gpio_set_level(EspReqTransferPin, led);
+		vTaskDelay(500 / portTICK_PERIOD_MS);
 	}
 #else
 	for (int i = 10; i >= 0; i--) {

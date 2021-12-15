@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "driver/gpio.h"
 #include "esp_system.h"
 #include "esp_spi_flash.h"
 
@@ -20,13 +21,7 @@
 #include "TcpServer.h"
 #include "WifiClient.h"
 
-extern "C" {
-	void app_main(void);
-}
-
-static void arduino_setup(void);
-
-#if 1
+#if 0
 
 #include "ecv.h"
 #undef yield
@@ -50,11 +45,18 @@ static void arduino_setup(void);
 #include "Listener.h"
 #include "Misc.h"
 
-static const uint8_t D4   = 2;
-static const unsigned int ONBOARD_LED = D4;				// GPIO 2
+#define millis xTaskGetTickCount
+
+static const unsigned int ONBOARD_LED = 2;				// GPIO 2
 static const bool ONBOARD_LED_ON = false;					// active low
 static const uint32_t ONBOARD_LED_BLINK_INTERVAL = 500;	// ms
 static const uint32_t TransferReadyTimeout = 10;			// how many milliseconds we allow for the Duet to set TransferReady low after the end of a transaction, before we assume that we missed seeing it
+
+// Pin numbers
+static const gpio_num_t SamSSPin = GPIO_NUM_15;          // GPIO15, output to SAM, SS pin for SPI transfer
+static const gpio_num_t EspReqTransferPin = GPIO_NUM_0;  // GPIO0, output, indicates to the SAM that we want to send something
+static const gpio_num_t SamTfrReadyPin = GPIO_NUM_4;     // GPIO4, input, indicates that SAM is ready to execute an SPI transaction
+
 
 static const char * const MdnsProtocolNames[3] = { "HTTP", "FTP", "Telnet" };
 static const char * const MdnsServiceStrings[3] = { "_http", "_ftp", "_telnet" };
@@ -93,6 +95,13 @@ static uint32_t transferBuffer[NumDwords(MaxDataLength + 1)];
 
 static const WirelessConfigurationData *ssidData = nullptr;
 
+extern "C" {
+	void app_main(void);
+}
+
+static void arduino_setup(void);
+static void arduino_loop(void);
+
 static int app_init(void)
 {
 	// TODO
@@ -100,11 +109,13 @@ static int app_init(void)
 	// init spi interrupt pins
 	// init spi interface
 
+#if 0
 	wifi_init_sta();
 	dwss_spiffs_init();
 	TcpServer_init();
-
+#else
 	arduino_setup();
+#endif
 
 	return 0;
 }
@@ -129,6 +140,25 @@ void app_main(void)
 	vTaskDelay(1000 / portTICK_PERIOD_MS);
 
 	bool led = false;
+#if 1
+
+	gpio_set_level(SamSSPin, 1);
+	gpio_set_level(EspReqTransferPin, 1);
+
+	for (;;) {
+		debug("led test %d\n", led);
+		//digitalWrite(ONBOARD_LED, led);
+		gpio_set_level(GPIO_NUM_2, led ? 0 : 1);
+		led = !led;
+		gpio_set_level(EspReqTransferPin, led);
+		//arduino_loop();
+		if (transferReadyChanged) {
+			debug("ready pin changed\n");
+			transferReadyChanged = false;
+		}
+		vTaskDelay(1000 / portTICK_PERIOD_MS);
+	}
+#else
 	for (int i = 10; i >= 0; i--) {
 		digitalWrite(ONBOARD_LED, led);
 		led = !led;
@@ -138,6 +168,7 @@ void app_main(void)
 		led = !led;
 		vTaskDelay(500 / portTICK_PERIOD_MS);
 	}
+#endif
 	info("Restarting now.\n");
 	fflush(stdout);
 	esp_restart();
@@ -146,6 +177,7 @@ void app_main(void)
 // Look up a SSID in our remembered network list, return pointer to it if found
 static const WirelessConfigurationData *RetrieveSsidData(const char *ssid, int *index = nullptr)
 {
+#if 0
 	for (size_t i = 1; i <= MaxRememberedNetworks; ++i)
 	{
 		const WirelessConfigurationData *wp = EEPROM.getPtr<WirelessConfigurationData>(i * sizeof(WirelessConfigurationData));
@@ -159,11 +191,15 @@ static const WirelessConfigurationData *RetrieveSsidData(const char *ssid, int *
 		}
 	}
 	return nullptr;
+#else
+	return nullptr;
+#endif
 }
 
 // Find an empty entry in the table of known networks
 static bool FindEmptySsidEntry(int *index)
 {
+#if 0
 	for (size_t i = 1; i <= MaxRememberedNetworks; ++i)
 	{
 		const WirelessConfigurationData *wp = EEPROM.getPtr<WirelessConfigurationData>(i * sizeof(WirelessConfigurationData));
@@ -174,6 +210,9 @@ static bool FindEmptySsidEntry(int *index)
 		}
 	}
 	return false;
+#else
+	return false;
+#endif
 }
 
 // Check socket number in range, returning true if yes. Otherwise, set lastError and return false;
@@ -190,6 +229,7 @@ static bool ValidSocketNumber(uint8_t num)
 // Reset to default settings
 static void FactoryReset()
 {
+#if 0
 	WirelessConfigurationData temp;
 	memset(&temp, 0xFF, sizeof(temp));
 	for (size_t i = 0; i <= MaxRememberedNetworks; ++i)
@@ -197,12 +237,14 @@ static void FactoryReset()
 		EEPROM.put(i * sizeof(WirelessConfigurationData), temp);
 	}
 	EEPROM.commit();
+#endif
 }
 
 // Try to connect using the specified SSID and password
 static void ConnectToAccessPoint(const WirelessConfigurationData& apData, bool isRetry)
 pre(currentState == NetworkState::idle)
 {
+#if 0
 	SafeStrncpy(currentSsid, apData.ssid, ARRAY_SIZE(currentSsid));
 
 	WiFi.mode(WIFI_STA);
@@ -228,10 +270,12 @@ pre(currentState == NetworkState::idle)
 		currentState = WiFiState::connecting;
 		connectStartTime = millis();
 	}
+#endif
 }
 
 static void ConnectPoll()
 {
+#if 0
 	// The Arduino WiFi.status() call is fairly useless here because it discards too much information, so use the SDK API call instead
 	const uint8_t status = wifi_station_get_connect_status();
 	const char *error = nullptr;
@@ -384,11 +428,13 @@ static void ConnectPoll()
 	{
 		ConnectToAccessPoint(*ssidData, true);
 	}
+#endif
 }
 
 static void StartClient(const char * array ssid)
 pre(currentState == WiFiState::idle)
 {
+#if 0
 	ssidData = nullptr;
 
 	if (ssid == nullptr || ssid[0] == 0)
@@ -436,6 +482,7 @@ pre(currentState == WiFiState::idle)
 
 	// ssidData contains the details of the strongest known access point
 	ConnectToAccessPoint(*ssidData, false);
+#endif
 }
 
 static bool CheckValidSSID(const char * array s)
@@ -496,6 +543,7 @@ static bool ValidApData(const WirelessConfigurationData &apData)
 
 static void StartAccessPoint()
 {
+#if 0
 	WirelessConfigurationData apData;
 	EEPROM.get(0, apData);
 
@@ -556,31 +604,23 @@ static void StartAccessPoint()
 		currentState = WiFiState::idle;
 		digitalWrite(ONBOARD_LED, !ONBOARD_LED_ON);
 	}
+#endif
 }
-
-static union
-{
-	MessageHeaderSamToEsp hdr;			// the actual header
-	uint32_t asDwords[headerDwords];	// to force alignment
-} messageHeaderIn;
-
-static union
-{
-	MessageHeaderEspToSam hdr;
-	uint32_t asDwords[headerDwords];	// to force alignment
-} messageHeaderOut;
 
 static void MdnsGetServiceTxtEntries(struct mdns_service *service, void *txt_userdata)
 {
+#if 0
 	for (size_t i = 0; i < ARRAY_SIZE(MdnsTxtRecords); i++)
 	{
 		mdns_resp_add_service_txtitem(service, MdnsTxtRecords[i], strlen(MdnsTxtRecords[i]));
 	}
+#endif
 }
 
 // Rebuild the mDNS services
 static void MdnsRebuildServices()
 {
+#if 0
 	for (struct netif *item = netif_list; item != nullptr; item = item->next)
 	{
 		mdns_resp_remove_netif(item);
@@ -599,14 +639,17 @@ static void MdnsRebuildServices()
 
 		mdns_resp_netif_settings_changed(item);
 	}
+#endif
 }
 
 static void MdnsRemoveServices()
 {
+#if 0
 	for (struct netif *item = netif_list; item != nullptr; item = item->next)
 	{
 		mdns_resp_remove_netif(item);
 	}
+#endif
 }
 
 // Send a response.
@@ -629,6 +672,46 @@ static void ICACHE_RAM_ATTR SendResponse(const uint32_t *buffer, size_t size)
 // This is called when the SAM is asking to transfer data
 static void ICACHE_RAM_ATTR ProcessRequest()
 {
+#if 1
+	static union
+	{
+		MessageHeaderSamToEsp hdr;			// the actual header
+		uint32_t asDwords[headerDwords];	// to force alignment
+	} messageHeaderIn;
+
+	static union
+	{
+		MessageHeaderEspToSam hdr;
+		uint32_t asDwords[headerDwords];	// to force alignment
+	} messageHeaderOut;
+
+	messageHeaderIn.hdr.formatVersion = InvalidFormatVersion;
+	messageHeaderOut.hdr.formatVersion = MyFormatVersion;
+	messageHeaderOut.hdr.state = currentState;
+
+	// Begin the transaction
+	digitalWrite(SamSSPin, LOW);            // assert CS to SAM
+	hspi.beginTransaction();
+
+	// Exchange headers, except for the last dword which will contain our response
+	hspi.transferDwords(messageHeaderOut.asDwords, messageHeaderIn.asDwords, headerDwords - 1);
+
+	if (messageHeaderIn.hdr.formatVersion != MyFormatVersion)
+	{
+		SendErrorResponse(ResponseBadRequestFormatVersion);
+	}
+	else if (messageHeaderIn.hdr.dataLength > MaxDataLength)
+	{
+		SendErrorResponse(ResponseBadDataLength);
+	}
+	else
+	{
+		SendErrorResponse(ResponseUnknownCommand);
+	}
+
+	hspi.endTransaction();
+
+#else
 	// Set up our own headers
 	messageHeaderIn.hdr.formatVersion = InvalidFormatVersion;
 	messageHeaderOut.hdr.formatVersion = MyFormatVersion;
@@ -1107,6 +1190,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 			break;
 		}
 	}
+#endif
 }
 
 static void ICACHE_RAM_ATTR TransferReadyIsr()
@@ -1114,8 +1198,86 @@ static void ICACHE_RAM_ATTR TransferReadyIsr()
 	transferReadyChanged = true;
 }
 
-void setup()
+static void gpio_isr_handler(void *arg)
 {
+	//gpio_num_t gpio = static_cast<gpio_num_t>(arg);
+	transferReadyChanged = true;
+}
+
+static void arduino_setup(void)
+{
+	esp_err_t err;
+
+	gpio_config_t led_gpio;
+	led_gpio.intr_type = GPIO_INTR_DISABLE;
+	led_gpio.mode = GPIO_MODE_OUTPUT;
+	led_gpio.pin_bit_mask = BIT(GPIO_NUM_2);
+	led_gpio.pull_down_en = GPIO_PULLDOWN_DISABLE;
+	led_gpio.pull_up_en = GPIO_PULLUP_DISABLE;
+	err = gpio_config(&led_gpio);
+	if (err) {
+		err("failed to init led_gpio.\n");
+		return;
+	}
+
+	gpio_config_t cs_gpio;
+	cs_gpio.intr_type = GPIO_INTR_DISABLE;
+	cs_gpio.mode = GPIO_MODE_OUTPUT;
+	cs_gpio.pin_bit_mask = BIT(SamSSPin);
+	cs_gpio.pull_down_en = GPIO_PULLDOWN_DISABLE;
+	cs_gpio.pull_up_en = GPIO_PULLUP_DISABLE;
+	err = gpio_config(&cs_gpio);
+	if (err) {
+		err("failed to init cs_gpio.\n");
+		return;
+	}
+
+	gpio_set_level(SamSSPin, 1);
+
+	gpio_config_t transfer_gpio;
+	transfer_gpio.intr_type = GPIO_INTR_DISABLE;
+	transfer_gpio.mode = GPIO_MODE_OUTPUT;
+	transfer_gpio.pin_bit_mask = BIT(EspReqTransferPin);
+	transfer_gpio.pull_down_en = GPIO_PULLDOWN_DISABLE;
+	transfer_gpio.pull_up_en = GPIO_PULLUP_DISABLE;
+	err = gpio_config(&transfer_gpio);
+	if (err) {
+		err("failed to init transfer_gpio.\n");
+		return;
+	}
+
+	gpio_set_level(EspReqTransferPin, 0);
+
+	gpio_config_t receive_gpio;
+	receive_gpio.intr_type = GPIO_INTR_ANYEDGE;
+	receive_gpio.mode = GPIO_MODE_INPUT;
+	receive_gpio.pin_bit_mask = BIT(SamTfrReadyPin);
+	receive_gpio.pull_down_en = GPIO_PULLDOWN_DISABLE;
+	receive_gpio.pull_up_en = GPIO_PULLUP_DISABLE;
+	err = gpio_config(&receive_gpio);
+	if (err) {
+		err("failed to init receive_gpio.\n");
+		return;
+	}
+
+	gpio_install_isr_service(0);
+	gpio_isr_handler_add(SamTfrReadyPin, gpio_isr_handler, (void *)SamTfrReadyPin);
+
+#if 1
+#if 0
+	// Turn off LED
+	pinMode(ONBOARD_LED, OUTPUT);
+	digitalWrite(ONBOARD_LED, true);
+
+	pinMode(SamTfrReadyPin, INPUT);
+	pinMode(EspReqTransferPin, OUTPUT);
+	digitalWrite(EspReqTransferPin, LOW);				// not ready to transfer data yet
+	pinMode(SamSSPin, OUTPUT);
+	digitalWrite(SamSSPin, HIGH);
+
+	hspi.InitMaster(SPI_MODE1, defaultClockControl, true);
+#endif
+#else
 	// Enable serial port for debugging
 	Serial.begin(WiFiBaudRate);
 	Serial.setDebugOutput(true);
@@ -1164,10 +1326,23 @@ void setup()
 	whenLastTransactionFinished = millis();
 	lastStatusReportTime = millis();
 	digitalWrite(EspReqTransferPin, HIGH);				// tell the SAM we are ready to receive a command
+#endif
 }
 
-void loop()
+static void arduino_loop()
 {
+#if 1
+#if 0
+	digitalWrite(EspReqTransferPin, HIGH);				// tell the SAM we are ready to receive a command
+
+	if (digitalRead(SamTfrReadyPin) == HIGH && (transferReadyChanged || millis() - whenLastTransactionFinished > TransferReadyTimeout))
+	{
+		transferReadyChanged = false;
+		ProcessRequest();
+		whenLastTransactionFinished = millis();
+	}
+#endif
+#else
 	digitalWrite(EspReqTransferPin, HIGH);				// tell the SAM we are ready to receive a command
 	system_soft_wdt_feed();								// kick the watchdog
 
@@ -1210,8 +1385,10 @@ void loop()
 		lastBlinkTime = millis();
 		digitalWrite(ONBOARD_LED, !digitalRead(ONBOARD_LED));
 	}
+#endif
 }
 
+#else
 #endif
 
 // End

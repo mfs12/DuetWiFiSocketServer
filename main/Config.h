@@ -44,11 +44,6 @@ const uint32_t maxSpiFileData = 2048;
 // Due to the 15ns SCLK to MISO delay of the SAMD51, 2:1 is preferred over 1:2
 const uint32_t defaultClockControl = 0x2002;		// 80MHz/3, mark:space 2:1
 
-// Pin numbers
-const int SamSSPin = 15;          // GPIO15, output to SAM, SS pin for SPI transfer
-const int EspReqTransferPin = 0;  // GPIO0, output, indicates to the SAM that we want to send something
-const int SamTfrReadyPin = 4;     // GPIO4, input, indicates that SAM is ready to execute an SPI transaction
-
 const uint8_t Backlog = 8;
 
 #define ARRAY_SIZE(_x) (sizeof(_x)/sizeof((_x)[0]))

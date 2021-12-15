@@ -10,6 +10,8 @@
 
 #if SOCKETSERVER_ENABLE
 
+#include <cstring>
+
 #include <stdio.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -101,6 +103,7 @@ extern "C" {
 
 static void arduino_setup(void);
 static void arduino_loop(void);
+static void ICACHE_RAM_ATTR ProcessRequest(void);
 
 static int app_init(void)
 {
@@ -153,7 +156,7 @@ void app_main(void)
 
 		if (!gpio_get_level(SamTfrReadyPin)) {
 			debug("rrf not ready\n");
-			vTaskDelay(500 / portTICK_PERIOD_MS);
+			vTaskDelay(50 / portTICK_PERIOD_MS);
 			continue;
 		}
 		debug("rrf ready\n");
@@ -161,20 +164,19 @@ void app_main(void)
 		// activate spi CS
 		gpio_set_level(SamCsPin, 0);
 
-		// TODO do spi communication
-		vTaskDelay(500 / portTICK_PERIOD_MS);
+		// do spi communication
+		ProcessRequest();
 
-		// deactivated spi CS
+		// deactivate spi CS
 		gpio_set_level(SamCsPin, 1);
 
+#if 0
 		// error detected
 		gpio_set_level(EspReqTransferPin, 0);
 		vTaskDelay(10 / portTICK_PERIOD_MS);
 		gpio_set_level(EspReqTransferPin, 1);
 		vTaskDelay(10 / portTICK_PERIOD_MS);
-
-		gpio_set_level(EspReqTransferPin, led);
-		vTaskDelay(500 / portTICK_PERIOD_MS);
+#endif
 	}
 #else
 	for (int i = 10; i >= 0; i--) {
@@ -708,7 +710,6 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 	messageHeaderOut.hdr.state = currentState;
 
 	// Begin the transaction
-	digitalWrite(SamCsPin, LOW);            // assert CS to SAM
 	hspi.beginTransaction();
 
 	// Exchange headers, except for the last dword which will contain our response
@@ -724,11 +725,47 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 	}
 	else
 	{
-		SendErrorResponse(ResponseUnknownCommand);
+		switch (messageHeaderIn.hdr.command)
+		{
+		case NetworkCommand::networkGetStatus:				// get the network connection status
+			{
+				const bool runningAsAp = (currentState == WiFiState::runningAsAccessPoint);
+				const bool runningAsStation = (currentState == WiFiState::connected);
+				NetworkStatusResponse * const response = reinterpret_cast<NetworkStatusResponse*>(transferBuffer);
+				memset(response, 0, sizeof(*response));
+				SafeStrncpy(response->versionText, "hallo world", strlen("hallo world"));
+#if 0
+				response->ipAddress = (runningAsAp)
+										? static_cast<uint32_t>(WiFi.softAPIP())
+										: (runningAsStation)
+										  ? static_cast<uint32_t>(WiFi.localIP())
+											  : 0;
+				response->freeHeap = system_get_free_heap_size();
+				response->resetReason = system_get_rst_info()->reason;
+				response->flashSize = 1u << ((spi_flash_get_id() >> 16) & 0xFF);
+				response->rssi = (runningAsStation) ? wifi_station_get_rssi() : 0;
+				response->numClients = (runningAsAp) ? wifi_softap_get_station_num() : 0;
+				response->sleepMode = (uint8_t)wifi_get_sleep_type() + 1;
+				response->phyMode = (uint8_t)wifi_get_phy_mode();
+				response->zero1 = 0;
+				response->zero2 = 0;
+				response->vcc = system_get_vdd33();
+				wifi_get_macaddr((runningAsAp) ? SOFTAP_IF : STATION_IF, response->macAddress);
+				SafeStrncpy(response->versionText, firmwareVersion, sizeof(response->versionText));
+				SafeStrncpy(response->hostName, webHostName, sizeof(response->hostName));
+				SafeStrncpy(response->ssid, currentSsid, sizeof(response->ssid));
+				response->clockReg = SPI1CLK;
+#endif
+				SendErrorResponse(sizeof(NetworkStatusResponse));
+			}
+			break;
+		default:
+			SendErrorResponse(ResponseUnknownCommand);
+			break;
+		}
 	}
 
 	hspi.endTransaction();
-
 #else
 	// Set up our own headers
 	messageHeaderIn.hdr.formatVersion = InvalidFormatVersion;
@@ -1224,6 +1261,7 @@ static void gpio_isr_handler(void *arg)
 
 static void arduino_setup(void)
 {
+#if 1
 	esp_err_t err;
 
 	gpio_config_t led_gpio;
@@ -1268,6 +1306,7 @@ static void arduino_setup(void)
 
 	gpio_config_t receive_gpio;
 	receive_gpio.intr_type = GPIO_INTR_ANYEDGE;
+	//receive_gpio.intr_type = GPIO_INTR_DISABLE;
 	receive_gpio.mode = GPIO_MODE_INPUT;
 	receive_gpio.pin_bit_mask = BIT(SamTfrReadyPin);
 	receive_gpio.pull_down_en = GPIO_PULLDOWN_DISABLE;
@@ -1281,20 +1320,7 @@ static void arduino_setup(void)
 	gpio_install_isr_service(0);
 	gpio_isr_handler_add(SamTfrReadyPin, gpio_isr_handler, (void *)SamTfrReadyPin);
 
-#if 1
-#if 0
-	// Turn off LED
-	pinMode(ONBOARD_LED, OUTPUT);
-	digitalWrite(ONBOARD_LED, true);
-
-	pinMode(SamTfrReadyPin, INPUT);
-	pinMode(EspReqTransferPin, OUTPUT);
-	digitalWrite(EspReqTransferPin, LOW);				// not ready to transfer data yet
-	pinMode(SamCsPin, OUTPUT);
-	digitalWrite(SamCsPin, HIGH);
-
 	hspi.InitMaster(SPI_MODE1, defaultClockControl, true);
-#endif
 #else
 	// Enable serial port for debugging
 	Serial.begin(WiFiBaudRate);

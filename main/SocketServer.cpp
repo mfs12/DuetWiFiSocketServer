@@ -50,51 +50,48 @@
 
 #define millis xTaskGetTickCount
 
-static const gpio_num_t ONBOARD_LED = GPIO_NUM_2;	// active low
+// gpios
+static const gpio_num_t OnBoardLed = GPIO_NUM_2;	// active low
+static const gpio_num_t SamCsPin = GPIO_NUM_15;		// output to SAM, SS pin for SPI transfer, active low
+static const gpio_num_t EspReqTransferPin = GPIO_NUM_0;	// output, indicates to the SAM that we want to send something
+static const gpio_num_t SamTfrReadyPin = GPIO_NUM_4;	// input, indicates that SAM is ready to execute an SPI transaction
+
+static const char* lastError = nullptr;
+static const char* prevLastError = nullptr;
+
+//ADC_MODE(ADC_VCC);          // need this for the ESP.getVcc() call to work
+
+// led
 static const bool ONBOARD_LED_ON = false;
 static const uint32_t ONBOARD_LED_BLINK_INTERVAL = 500;	// ms
-static const uint32_t TransferReadyTimeout = 10;			// how many milliseconds we allow for the Duet to set TransferReady low after the end of a transaction, before we assume that we missed seeing it
+static uint32_t lastBlinkTime = 0;
 
-// Pin numbers
-static const gpio_num_t SamCsPin = GPIO_NUM_15;          // output to SAM, SS pin for SPI transfer, active low
-static const gpio_num_t EspReqTransferPin = GPIO_NUM_0;  // output, indicates to the SAM that we want to send something
-static const gpio_num_t SamTfrReadyPin = GPIO_NUM_4;     // input, indicates that SAM is ready to execute an SPI transaction
+// spi
+static HSPIClass hspi;
+static bool transferReadyChanged = false;
+static const uint32_t TransferReadyTimeout = 10;	// how many milliseconds we allow for the Duet to set TransferReady low after the end of a transaction, before we assume that we missed seeing it
+static uint32_t transferBuffer[NumDwords(MaxDataLength + 1)];
+static const uint32_t StatusReportMillis = 200;
+static uint32_t lastSpiTransferTime = 0;
 
+// wifi
+static const uint32_t MaxConnectTime = 40 * 1000;		// how long we wait for WiFi to connect in milliseconds
+static uint32_t connectStartTime;
+static const int DefaultWiFiChannel = 6;
+static bool connectErrorChanged = false;
 
+// mdns
 static const char * const MdnsProtocolNames[3] = { "HTTP", "FTP", "Telnet" };
 static const char * const MdnsServiceStrings[3] = { "_http", "_ftp", "_telnet" };
 static const char * const MdnsTxtRecords[2] = { "product=DuetWiFi", "version=" VERSION_MAIN };
 static const unsigned int MdnsTtl = 10 * 60;			// same value as on the Duet 0.6/0.8.5
 
-static const uint32_t MaxConnectTime = 40 * 1000;		// how long we wait for WiFi to connect in milliseconds
-static const uint32_t StatusReportMillis = 200;
-
-static const int DefaultWiFiChannel = 6;
-
-// Global data
+// obsolete???
+static uint32_t lastStatusReportTime;
 static char currentSsid[SsidLength + 1];
 static char webHostName[HostNameLength + 1] = "Duet-WiFi";
 
-static const char* lastError = nullptr;
-static const char* prevLastError = nullptr;
-static uint32_t lastTransaction = 0;
-static bool connectErrorChanged = false;
-static bool transferReadyChanged = false;
-
 static char lastConnectError[100];
-
-static WiFiState currentState = WiFiState::idle,
-				prevCurrentState = WiFiState::disabled,
-				lastReportedState = WiFiState::disabled;
-static uint32_t lastBlinkTime = 0;
-
-ADC_MODE(ADC_VCC);          // need this for the ESP.getVcc() call to work
-
-static HSPIClass hspi;
-static uint32_t transferBuffer[NumDwords(MaxDataLength + 1)];
-
-static uint32_t connectStartTime;
-static uint32_t lastStatusReportTime;
 
 
 static const WirelessConfigurationData *ssidData = nullptr;
@@ -117,7 +114,7 @@ static void led_blink(void)
 	     currentState == WiFiState::reconnecting))
 	{
 		lastBlinkTime = now;
-		gpio_set_level(ONBOARD_LED, !gpio_get_level(ONBOARD_LED));
+		gpio_set_level(OnBoardLed, !gpio_get_level(OnBoardLed));
 	}
 }
 
@@ -139,7 +136,7 @@ static int app_init(void)
 	gpio_config_t led_gpio;
 	led_gpio.intr_type = GPIO_INTR_DISABLE;
 	led_gpio.mode = GPIO_MODE_OUTPUT;
-	led_gpio.pin_bit_mask = BIT(ONBOARD_LED);
+	led_gpio.pin_bit_mask = BIT(OnBoardLed);
 	led_gpio.pull_down_en = GPIO_PULLDOWN_DISABLE;
 	led_gpio.pull_up_en = GPIO_PULLUP_DISABLE;
 	err = gpio_config(&led_gpio);
@@ -229,7 +226,6 @@ void app_main(void)
 
 	vTaskDelay(2000 / portTICK_PERIOD_MS);
 
-	bool led = false;
 #if 1
 
 	// esp is ready
@@ -238,8 +234,7 @@ void app_main(void)
 
 	for (;;) {
 		// toggle led
-		gpio_set_level(ONBOARD_LED, led ? 0 : 1);
-		led = !led;
+		led_blink();
 
 		if (!gpio_get_level(SamTfrReadyPin)) {
 			debug("rrf not ready\n");
@@ -254,12 +249,10 @@ void app_main(void)
 		// do spi communication
 		ProcessRequest();
 		transferReadyChanged = false;
-		lastTransaction = millis();
+		lastSpiTransferTime = millis();
 
 		// deactivate spi CS
 		gpio_set_level(SamCsPin, 1);
-
-		led_blink();
 #if 0
 		// error detected
 		gpio_set_level(EspReqTransferPin, 0);
@@ -270,11 +263,11 @@ void app_main(void)
 	}
 #else
 	for (int i = 10; i >= 0; i--) {
-		digitalWrite(ONBOARD_LED, led);
+		digitalWrite(OnBoardLed, led);
 		led = !led;
 		info("Restarting in %d seconds...\n", i);
 		vTaskDelay(1000 / portTICK_PERIOD_MS);
-		digitalWrite(ONBOARD_LED, led);
+		digitalWrite(OnBoardLed, led);
 		led = !led;
 		vTaskDelay(500 / portTICK_PERIOD_MS);
 	}
@@ -435,7 +428,7 @@ static void ConnectPoll()
 
 			debug("Connected to AP\n");
 			currentState = WiFiState::connected;
-			digitalWrite(ONBOARD_LED, ONBOARD_LED_ON);
+			digitalWrite(OnBoardLed, ONBOARD_LED_ON);
 			break;
 
 		default:
@@ -456,7 +449,7 @@ static void ConnectPoll()
 			{
 				WiFi.mode(WIFI_OFF);
 				currentState = WiFiState::idle;
-				digitalWrite(ONBOARD_LED, !ONBOARD_LED_ON);
+				digitalWrite(OnBoardLed, !ONBOARD_LED_ON);
 			}
 		}
 		break;
@@ -482,7 +475,7 @@ static void ConnectPoll()
 			case STATION_WRONG_PASSWORD:
 				error = "state 'wrong password'";
 				currentState = WiFiState::idle;
-				digitalWrite(ONBOARD_LED, !ONBOARD_LED_ON);
+				digitalWrite(OnBoardLed, !ONBOARD_LED_ON);
 				break;
 
 			case STATION_NO_AP_FOUND:
@@ -498,7 +491,7 @@ static void ConnectPoll()
 			default:
 				error = "unknown WiFi state";
 				currentState = WiFiState::idle;
-				digitalWrite(ONBOARD_LED, !ONBOARD_LED_ON);
+				digitalWrite(OnBoardLed, !ONBOARD_LED_ON);
 				break;
 			}
 
@@ -555,7 +548,7 @@ pre(currentState == WiFiState::idle)
 		{
 			lastError = "network scan failed";
 			currentState = WiFiState::idle;
-			digitalWrite(ONBOARD_LED, !ONBOARD_LED_ON);
+			digitalWrite(OnBoardLed, !ONBOARD_LED_ON);
 			return;
 		}
 
@@ -695,7 +688,7 @@ static void StartAccessPoint()
 			}
 			SafeStrncpy(currentSsid, apData.ssid, ARRAY_SIZE(currentSsid));
 			currentState = WiFiState::runningAsAccessPoint;
-			digitalWrite(ONBOARD_LED, ONBOARD_LED_ON);
+			digitalWrite(OnBoardLed, ONBOARD_LED_ON);
 			mdns_resp_netif_settings_changed(netif_list->next);		// AP is on second interface
 		}
 		else
@@ -704,7 +697,7 @@ static void StartAccessPoint()
 			lastError = "Failed to start access point";
 			debug("%s\n", lastError);
 			currentState = WiFiState::idle;
-			digitalWrite(ONBOARD_LED, !ONBOARD_LED_ON);
+			digitalWrite(OnBoardLed, !ONBOARD_LED_ON);
 		}
 	}
 	else
@@ -712,7 +705,7 @@ static void StartAccessPoint()
 		lastError = "invalid access point configuration";
 		debug("%s\n", lastError);
 		currentState = WiFiState::idle;
-		digitalWrite(ONBOARD_LED, !ONBOARD_LED_ON);
+		digitalWrite(OnBoardLed, !ONBOARD_LED_ON);
 	}
 #endif
 }
@@ -877,7 +870,7 @@ static void arduino_setup(void)
     lastError = nullptr;
     debug("Init completed\n");
 	attachInterrupt(SamTfrReadyPin, TransferReadyIsr, CHANGE);
-	lastTransaction = millis();
+	lastSpiTransferTime = millis();
 	lastStatusReportTime = millis();
 	digitalWrite(EspReqTransferPin, HIGH);				// tell the SAM we are ready to receive a command
 #endif
@@ -907,11 +900,11 @@ static void arduino_loop()
 	// See whether there is a request from the SAM.
 	// Duet WiFi 1.04 and earlier have hardware to ensure that TransferReady goes low when a transaction starts.
 	// Duet 3 Mini doesn't, so we need to see TransferReady go low and then high again. In case that happens so fast that we dn't get the interrupt, we have a timeout.
-	if (digitalRead(SamTfrReadyPin) == HIGH && (transferReadyChanged || millis() - lastTransaction > TransferReadyTimeout))
+	if (digitalRead(SamTfrReadyPin) == HIGH && (transferReadyChanged || millis() - lastSpiTransferTime > TransferReadyTimeout))
 	{
 		transferReadyChanged = false;
 		ProcessRequest();
-		lastTransaction = millis();
+		lastSpiTransferTime = millis();
 	}
 
 	ConnectPoll();

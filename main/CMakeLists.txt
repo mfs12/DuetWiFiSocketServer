@@ -1,14 +1,15 @@
 idf_component_register(
   SRCS
     Connection.cpp
+    DwssSpiffs.c
     HSPI.cpp
     Listener.cpp
     Misc.cpp
+    Process.cpp
     SocketServer.cpp
-    WifiConfig.cpp
-    DwssSpiffs.c
     TcpServer.c
     WifiClient.c
+    WifiConfig.cpp
     arduino/gpio.c
   INCLUDE_DIRS
     ".")

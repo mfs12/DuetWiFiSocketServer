@@ -48,8 +48,8 @@ enum class NetworkCommand : uint8_t
 	connRead = 4,					// read data from a connection
 	connWrite = 5,					// write data to a connection
 	connGetStatus = 6,				// get the status of a connection
-
 	networkListen = 7,				// listen for incoming connections to a port, or stop listening
+
 	unused_networkStopListening = 8, // stop listening for connections to a port
 
 	networkGetStatus = 9,			// get the network connection status
@@ -60,6 +60,7 @@ enum class NetworkCommand : uint8_t
 	networkStartClient = 14,			// connect to an access point
 	networkStartAccessPoint = 15,	// run as an access point
 	networkStop = 16,				// disconnect from an access point, or close down our own access point
+
 	networkFactoryReset = 17,		// delete all SSID/password info and reset factory settings in EEPROM
 	networkSetHostName = 18,			// set the host name
 	networkGetLastError = 19,		// get the result of the last deferred command we sent
@@ -69,7 +70,15 @@ enum class NetworkCommand : uint8_t
 
 	// Added at version 1.24
 	networkSetTxPower = 22,			// set transmitter power in units of 0.25db, max 82 = 20.5db
-	networkSetClockControl = 23		// set clock control word - only provided because the ESP8266 documentation is not only crap but seriously wrong
+	networkSetClockControl = 23,		// set clock control word - only provided because the ESP8266 documentation is not only crap but seriously wrong
+
+	// define some ranges to split commands into differnet groups
+	connMin = 1,
+	connMax = 7,
+	networkWifiMin = 9,
+	networkWifiMax = 16,
+	networkMiscMin = 17,
+	networkMiscMax = 23
 };
 
 // Message header sent from the SAM to the ESP

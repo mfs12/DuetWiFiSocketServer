@@ -82,17 +82,18 @@ static const uint32_t MaxConnectTime = 40 * 1000;		// how long we wait for WiFi 
 static uint32_t connectStartTime;
 static const int DefaultWiFiChannel = 6;
 static bool connectErrorChanged = false;
+static WifiClient *wifiClient;
 
 // mdns
 static const char * const MdnsProtocolNames[3] = { "HTTP", "FTP", "Telnet" };
 static const char * const MdnsServiceStrings[3] = { "_http", "_ftp", "_telnet" };
 static const char * const MdnsTxtRecords[2] = { "product=DuetWiFi", "version=" VERSION_MAIN };
 static const unsigned int MdnsTtl = 10 * 60;			// same value as on the Duet 0.6/0.8.5
+static char webHostName[HostNameLength + 1] = "Duet-WiFi";
 
 // obsolete???
 static uint32_t lastStatusReportTime;
 static char currentSsid[SsidLength + 1];
-static char webHostName[HostNameLength + 1] = "Duet-WiFi";
 
 static char lastConnectError[100];
 
@@ -111,10 +112,14 @@ static void led_blink(void)
 {
 	uint32_t now = millis();
 
+#if 1
+	if (now - lastBlinkTime > ONBOARD_LED_BLINK_INTERVAL)
+#else
 	if ((now - lastBlinkTime > ONBOARD_LED_BLINK_INTERVAL) &&
-	    (currentState == WiFiState::autoReconnecting ||
-	     currentState == WiFiState::connecting ||
-	     currentState == WiFiState::reconnecting))
+	    (currentState == WifiState::autoReconnecting ||
+	     currentState == WifiState::connecting ||
+	     currentState == WifiState::reconnecting))
+#endif
 	{
 		lastBlinkTime = now;
 		gpio_set_level(OnBoardLed, !gpio_get_level(OnBoardLed));
@@ -205,6 +210,12 @@ static int app_init(void)
 	hspi.InitMaster(SPI_MODE1, defaultClockControl, true);
 
 	arduino_setup();
+
+	tcpip_adapter_init();
+
+	ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+	wifiClient = new WifiClient();
 #endif
 
 	return 0;
@@ -239,6 +250,7 @@ void app_main(void)
 		// toggle led
 		led_blink();
 
+		// TODO use interrupt to handle this
 		if (!gpio_get_level(SamTfrReadyPin)) {
 			debug("rrf not ready\n");
 			vTaskDelay(50 / portTICK_PERIOD_MS);
@@ -369,11 +381,11 @@ pre(currentState == NetworkState::idle)
 
 	if (isRetry)
 	{
-		currentState = WiFiState::reconnecting;
+		currentState = WifiState::reconnecting;
 	}
 	else
 	{
-		currentState = WiFiState::connecting;
+		currentState = WifiState::connecting;
 		connectStartTime = millis();
 	}
 #endif
@@ -389,8 +401,8 @@ static void ConnectPoll()
 
 	switch (currentState)
 	{
-	case WiFiState::connecting:
-	case WiFiState::reconnecting:
+	case WifiState::connecting:
+	case WifiState::reconnecting:
 		// We are trying to connect or reconnect, so check for success or failure
 		switch (status)
 		{
@@ -411,16 +423,16 @@ static void ConnectPoll()
 
 		case STATION_NO_AP_FOUND:
 			error = "Didn't find access point";
-			retry = (currentState == WiFiState::reconnecting);
+			retry = (currentState == WifiState::reconnecting);
 			break;
 
 		case STATION_CONNECT_FAIL:
 			error = "Failed";
-			retry = (currentState == WiFiState::reconnecting);
+			retry = (currentState == WifiState::reconnecting);
 			break;
 
 		case STATION_GOT_IP:
-			if (currentState == WiFiState::reconnecting)
+			if (currentState == WifiState::reconnecting)
 			{
 				lastError = "Reconnect succeeded";
 			}
@@ -430,7 +442,7 @@ static void ConnectPoll()
 			}
 
 			debug("Connected to AP\n");
-			currentState = WiFiState::connected;
+			currentState = WifiState::connected;
 			digitalWrite(OnBoardLed, ONBOARD_LED_ON);
 			break;
 
@@ -451,13 +463,13 @@ static void ConnectPoll()
 			if (!retry)
 			{
 				WiFi.mode(WIFI_OFF);
-				currentState = WiFiState::idle;
+				currentState = WifiState::idle;
 				digitalWrite(OnBoardLed, !ONBOARD_LED_ON);
 			}
 		}
 		break;
 
-	case WiFiState::connected:
+	case WifiState::connected:
 		if (status != STATION_GOT_IP)
 		{
 			// We have just lost the connection
@@ -467,7 +479,7 @@ static void ConnectPoll()
 			{
 			case STATION_CONNECTING:							// auto reconnecting
 				error = "auto reconnecting";
-				currentState = WiFiState::autoReconnecting;
+				currentState = WifiState::autoReconnecting;
 				break;
 
 			case STATION_IDLE:
@@ -477,7 +489,7 @@ static void ConnectPoll()
 
 			case STATION_WRONG_PASSWORD:
 				error = "state 'wrong password'";
-				currentState = WiFiState::idle;
+				currentState = WifiState::idle;
 				digitalWrite(OnBoardLed, !ONBOARD_LED_ON);
 				break;
 
@@ -493,7 +505,7 @@ static void ConnectPoll()
 
 			default:
 				error = "unknown WiFi state";
-				currentState = WiFiState::idle;
+				currentState = WifiState::idle;
 				digitalWrite(OnBoardLed, !ONBOARD_LED_ON);
 				break;
 			}
@@ -507,11 +519,11 @@ static void ConnectPoll()
 		}
 		break;
 
-	case WiFiState::autoReconnecting:
+	case WifiState::autoReconnecting:
 		if (status == STATION_GOT_IP)
 		{
 			lastError = "Auto reconnect succeeded";
-			currentState = WiFiState::connected;
+			currentState = WifiState::connected;
 		}
 		else if (status != STATION_CONNECTING && lastError == nullptr)
 		{
@@ -538,7 +550,7 @@ static void ConnectPoll()
 }
 
 static void StartClient(const char * array ssid)
-pre(currentState == WiFiState::idle)
+pre(currentState == WifiState::idle)
 {
 #if 0
 	ssidData = nullptr;
@@ -550,7 +562,7 @@ pre(currentState == WiFiState::idle)
 		if (num_ssids < 0)
 		{
 			lastError = "network scan failed";
-			currentState = WiFiState::idle;
+			currentState = WifiState::idle;
 			digitalWrite(OnBoardLed, !ONBOARD_LED_ON);
 			return;
 		}
@@ -690,7 +702,7 @@ static void StartAccessPoint()
 				debug("%s\n", lastError);
 			}
 			SafeStrncpy(currentSsid, apData.ssid, ARRAY_SIZE(currentSsid));
-			currentState = WiFiState::runningAsAccessPoint;
+			currentState = WifiState::runningAsAccessPoint;
 			digitalWrite(OnBoardLed, ONBOARD_LED_ON);
 			mdns_resp_netif_settings_changed(netif_list->next);		// AP is on second interface
 		}
@@ -699,7 +711,7 @@ static void StartAccessPoint()
 			WiFi.mode(WIFI_OFF);
 			lastError = "Failed to start access point";
 			debug("%s\n", lastError);
-			currentState = WiFiState::idle;
+			currentState = WifiState::idle;
 			digitalWrite(OnBoardLed, !ONBOARD_LED_ON);
 		}
 	}
@@ -707,7 +719,7 @@ static void StartAccessPoint()
 	{
 		lastError = "invalid access point configuration";
 		debug("%s\n", lastError);
-		currentState = WiFiState::idle;
+		currentState = WifiState::idle;
 		digitalWrite(OnBoardLed, !ONBOARD_LED_ON);
 	}
 #endif
@@ -792,7 +804,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 
 	msgIn.hdr.formatVersion = InvalidFormatVersion;
 	msgOut.hdr.formatVersion = MyFormatVersion;
-	msgOut.hdr.state = currentState;
+	msgOut.hdr.state = WifiState::idle;
 
 	// Begin the transaction
 	hspi.beginTransaction();
@@ -819,7 +831,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 		}
 		else if (cmd >= NetworkCommand::networkWifiMin && cmd <= NetworkCommand::networkWifiMax)
 		{
-			resp = ProcessWifiRequest(cmd, transferBuffer, sizeof(transferBuffer));
+			resp = ProcessWifiRequest(wifiClient, cmd, transferBuffer, sizeof(transferBuffer));
 		}
 		else if (cmd >= NetworkCommand::networkMiscMin && cmd <= NetworkCommand::networkMiscMax)
 		{
@@ -913,7 +925,7 @@ static void arduino_loop()
 	ConnectPoll();
 	Connection::PollOne();
 
-	if (currentState == WiFiState::runningAsAccessPoint)
+	if (currentState == WifiState::runningAsAccessPoint)
 	{
 		dns.processNextRequest();
 	}

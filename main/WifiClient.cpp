@@ -5,14 +5,19 @@
 
 #include "freertos/task.h"
 
+#include "esp_event.h"
+#include "esp_log.h"
+#include "esp_system.h"
+#include "esp_wifi.h"
+
 /* The examples use WiFi configuration that you can set via project configuration menu
 
    If you'd rather not, just change the below entries to strings with
    the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
 */
-#define EXAMPLE_ESP_WIFI_SSID      CONFIG_DWSS_WIFI_SSID
-#define EXAMPLE_ESP_WIFI_PASS      CONFIG_DWSS_WIFI_PWD
-#define EXAMPLE_ESP_MAXIMUM_RETRY  CONFIG_DWSS_WIFI_MAX_RETRY
+#define WIFI_CLIENT_WIFI_SSID      "ssid"
+#define WIFI_CLIENT_WIFI_PASS      "pwd"
+#define WIFI_CLIENT_MAXIMUM_RETRY  3
 
 /* The event group allows multiple bits for each event, but we only care about two events:
  * - we are connected to the AP with an IP
@@ -30,7 +35,7 @@ static void EventHandler(void* arg, esp_event_base_t event_base,
 	if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
 		esp_wifi_connect();
 	} else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
-		if (client->connectRetryNum < EXAMPLE_ESP_MAXIMUM_RETRY) {
+		if (client->connectRetryNum < WIFI_CLIENT_MAXIMUM_RETRY) {
 			esp_wifi_connect();
 			client->connectRetryNum++;
 			ESP_LOGI(TAG, "retry to connect to the AP");
@@ -146,12 +151,12 @@ int WifiClient::Wait()
 	 * happened. */
 	if (bits & WIFI_CONNECTED_BIT) {
 		ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
-				EXAMPLE_ESP_WIFI_SSID, "xxx");
-		//EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
+				WIFI_CLIENT_WIFI_SSID, "xxx");
+		//WIFI_CLIENT_WIFI_SSID, WIFI_CLIENT_WIFI_PASS);
 	} else if (bits & WIFI_FAIL_BIT) {
 		ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
-				EXAMPLE_ESP_WIFI_SSID, "xxx");
-		//EXAMPLE_ESP_WIFI_SSID, EXAMPLE_ESP_WIFI_PASS);
+				WIFI_CLIENT_WIFI_SSID, "xxx");
+		//WIFI_CLIENT_WIFI_SSID, WIFI_CLIENT_WIFI_PASS);
 	} else {
 		ESP_LOGE(TAG, "UNEXPECTED EVENT");
 	}

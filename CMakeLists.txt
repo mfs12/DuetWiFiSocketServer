@@ -17,6 +17,10 @@ message("env IDF_PATH: " $ENV{IDF_PATH})
 include(lib/esp8266-rtos-sdk/tools/cmake/project.cmake)
 project(dwss)
 
+idf_build_set_property(C_COMPILE_OPTIONS "-fdiagnostics-color=always" APPEND)
+idf_build_set_property(CXX_COMPILE_OPTIONS "-fdiagnostics-color=always" APPEND)
+idf_build_set_property(COMPILE_OPTIONS "-fdiagnostics-color=always" APPEND)
+
 add_custom_command( OUTPUT dwss.bin DEPENDS gen_project_binary )
 add_custom_command( OUTPUT dwss-image.bin
 	DEPENDS bootloader/bootloader.bin partition_table/partition-table.bin dwss.bin

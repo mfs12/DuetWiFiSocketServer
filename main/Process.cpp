@@ -1,55 +1,73 @@
 #include "Process.h"
+#include "Misc.h"
+
+#include <cassert>
+#include <cstring>
+
+#include "esp_system.h"
+
+// TODO create a header like other projects
+#define PROCESS_VERSION "DWSS-ng"
+
+//static WifiState prevCurrentState = WifiState::disabled;
+//static WifiState lastReportedState = WifiState::disabled;
 
 int32_t ProcessConnRequest(NetworkCommand cmd, uint32_t *buffer, size_t size)
 {
 	return ResponseUnknownCommand;
 }
 
-int32_t ProcessWifiRequest(NetworkCommand cmd, uint32_t *buffer, size_t size)
+int32_t ProcessWifiRequest(WifiClient *client, NetworkCommand cmd, uint32_t *buffer, size_t size)
 {
-#if 0
+	assert(client && buffer && size > 0);
+#if 1
 	switch (cmd)
 	{
-		case NetworkCommand::networkGetStatus:				// get the network connection status
-			{
-				const bool runningAsAp = (currentState == WiFiState::runningAsAccessPoint);
-				const bool runningAsStation = (currentState == WiFiState::connected);
-				NetworkStatusResponse * const response = reinterpret_cast<NetworkStatusResponse*>(buffer);
+	case NetworkCommand::networkGetStatus:				// get the network connection status
+		{
+			WifiState currentState = client->GetStatus();
+			WifiConfigData *config = client->GetConfig();
+			const bool runningAsAp = (currentState == WifiState::runningAsAccessPoint);
+			const bool runningAsStation = (currentState == WifiState::connected);
 
-				if (size < sizeof(*response))
-				{
-					return ResponseBufferTooSmall;
-				}
-#if 1
-				memset(response, 0, sizeof(*response));
-				SafeStrncpy(response->versionText, "hallo world", strlen("hallo world"));
-#else
-				response->ipAddress = (runningAsAp)
-					? static_cast<uint32_t>(WiFi.softAPIP())
-					: (runningAsStation)
-					? static_cast<uint32_t>(WiFi.localIP())
-					: 0;
-				response->freeHeap = system_get_free_heap_size();
-				response->resetReason = system_get_rst_info()->reason;
-				response->flashSize = 1u << ((spi_flash_get_id() >> 16) & 0xFF);
-				response->rssi = (runningAsStation) ? wifi_station_get_rssi() : 0;
-				response->numClients = (runningAsAp) ? wifi_softap_get_station_num() : 0;
-				response->sleepMode = (uint8_t)wifi_get_sleep_type() + 1;
-				response->phyMode = (uint8_t)wifi_get_phy_mode();
-				response->zero1 = 0;
-				response->zero2 = 0;
-				response->vcc = system_get_vdd33();
-				wifi_get_macaddr((runningAsAp) ? SOFTAP_IF : STATION_IF, response->macAddress);
-				SafeStrncpy(response->versionText, firmwareVersion, sizeof(response->versionText));
-				SafeStrncpy(response->hostName, webHostName, sizeof(response->hostName));
-				SafeStrncpy(response->ssid, currentSsid, sizeof(response->ssid));
-				response->clockReg = SPI1CLK;
-#endif
-				return sizeof(*response);
+			NetworkStatusResponse * const response = reinterpret_cast<NetworkStatusResponse*>(buffer);
+
+			if (size < sizeof(*response))
+			{
+				return ResponseBufferTooSmall;
 			}
-			break;
-		default:
-			break;
+#if 1
+			memset(response, 0, sizeof(*response));
+			SafeStrncpy(response->ssid, config->ssid, sizeof(response->ssid));
+			SafeStrncpy(response->versionText, PROCESS_VERSION, sizeof(response->versionText));
+			response->freeHeap = esp_get_free_heap_size();
+			response->resetReason = esp_reset_reason();
+
+			esp_base_mac_addr_get(response->macAddress);
+#else
+			response->ipAddress = (runningAsAp)
+				? static_cast<uint32_t>(WiFi.softAPIP())
+				: (runningAsStation)
+				? static_cast<uint32_t>(WiFi.localIP())
+				: 0;
+			response->flashSize = 1u << ((spi_flash_get_id() >> 16) & 0xFF);
+
+			response->rssi = (runningAsStation) ? wifi_station_get_rssi() : 0;
+			response->numClients = (runningAsAp) ? wifi_softap_get_station_num() : 0;
+			response->sleepMode = (uint8_t)wifi_get_sleep_type() + 1;
+			response->phyMode = (uint8_t)wifi_get_phy_mode();
+			response->zero1 = 0;
+			response->zero2 = 0;
+			response->vcc = system_get_vdd33();
+			wifi_get_macaddr((runningAsAp) ? SOFTAP_IF : STATION_IF, response->macAddress);
+			SafeStrncpy(response->hostName, webHostName, sizeof(response->hostName));
+			response->clockReg = SPI1CLK;
+#endif
+			return sizeof(*response);
+		}
+		break;
+	default:
+		break;
 	}
 #endif
 	return ResponseUnknownCommand;
@@ -97,7 +115,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 			break;
 
 		case NetworkCommand::networkStartClient:			// connect to an access point
-			if (currentState == WiFiState::idle)
+			if (currentState == WifiState::idle)
 			{
 				deferCommand = true;
 				messageHeaderIn.hdr.param32 = hspi.transfer32(ResponseEmpty);
@@ -114,7 +132,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 			break;
 
 		case NetworkCommand::networkStartAccessPoint:		// run as an access point
-			if (currentState == WiFiState::idle)
+			if (currentState == WifiState::idle)
 			{
 				deferCommand = true;
 				messageHeaderIn.hdr.param32 = hspi.transfer32(ResponseEmpty);
@@ -137,8 +155,8 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 
 		case NetworkCommand::networkGetStatus:				// get the network connection status
 			{
-				const bool runningAsAp = (currentState == WiFiState::runningAsAccessPoint);
-				const bool runningAsStation = (currentState == WiFiState::connected);
+				const bool runningAsAp = (currentState == WifiState::runningAsAccessPoint);
+				const bool runningAsStation = (currentState == WifiState::connected);
 				NetworkStatusResponse * const response = reinterpret_cast<NetworkStatusResponse*>(transferBuffer);
 				response->ipAddress = (runningAsAp)
 										? static_cast<uint32_t>(WiFi.softAPIP())
@@ -501,15 +519,15 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 			MdnsRebuildServices();								// remove the MDNS services
 			switch (currentState)
 			{
-			case WiFiState::connected:
-			case WiFiState::connecting:
-			case WiFiState::reconnecting:
+			case WifiState::connected:
+			case WifiState::connecting:
+			case WifiState::reconnecting:
 				MdnsRemoveServices();
 				delay(20);									// try to give lwip time to recover from stopping everything
 				WiFi.disconnect(true);
 				break;
 
-			case WiFiState::runningAsAccessPoint:
+			case WifiState::runningAsAccessPoint:
 				dns.stop();
 				delay(20);									// try to give lwip time to recover from stopping everything
 				WiFi.softAPdisconnect(true);
@@ -519,7 +537,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 				break;
 			}
 			delay(100);
-			currentState = WiFiState::idle;
+			currentState = WifiState::idle;
 			digitalWrite(ONBOARD_LED, !ONBOARD_LED_ON);
 			break;
 

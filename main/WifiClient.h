@@ -24,11 +24,10 @@ public:
 	WifiClient();
 	~WifiClient();
 
-	/* FreeRTOS event group to signal when we are connected*/
-	EventGroupHandle_t s_wifi_event_group;
-	int s_retry_num = 0;
+	EventGroupHandle_t eventGroup; // should be private
+	int connectRetryNum = 0; // should be private
 
-	int Configure(const WifiConfigData *config);
+	int SetConfig(const WifiConfigData *config);
 	WifiConfigData *GetConfig();
 	WifiState GetStatus();
 

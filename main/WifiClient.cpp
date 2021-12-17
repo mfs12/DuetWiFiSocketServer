@@ -49,6 +49,9 @@ static void EventHandler(void* arg, esp_event_base_t event_base,
 
 WifiClient::WifiClient()
 {
+	config = nullptr;
+	state = WifiState::idle;
+
 	eventGroup = xEventGroupCreate();
 
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -100,7 +103,7 @@ int WifiClient::SetConfig(const WifiConfigData *config)
 }
 
 
-const WifiConfigData *WifiClient::GetConfig()
+WifiConfigData *WifiClient::GetConfig()
 {
 	return config;
 }

@@ -8,6 +8,7 @@ typedef WirelessConfigurationData WifiConfigData;
 
 class WifiConfig
 {
+public:
 	WifiConfig(void);
 	~WifiConfig(void);
 

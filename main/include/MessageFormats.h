@@ -33,10 +33,7 @@ const uint8_t InvalidFormatVersion = 0xC9;				// must be different from any form
 const uint32_t AnyIp = 0;
 
 // Return a size rounded up to to a whole number of dwords
-static inline constexpr size_t NumDwords(size_t arg)
-{
-	return (arg + sizeof(uint32_t) - 1)/sizeof(uint32_t);
-}
+#define NumDwords(arg) ((arg + sizeof(uint32_t) - 1)/sizeof(uint32_t))
 
 // Commands from the SAM to the ESP
 enum class NetworkCommand : uint8_t

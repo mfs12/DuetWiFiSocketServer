@@ -1,19 +1,24 @@
 #include "Process.h"
 #include "Misc.h"
 
+#define DEBUG 1
+#include "Debug.h"
+
 #include <cassert>
 #include <cstring>
 
 #include "esp_system.h"
 
 // TODO create a header like other projects
-#define PROCESS_VERSION "DWSS-ng"
+#define PROCESS_VERSION "DWSS-NG"
 
 //static WifiState prevCurrentState = WifiState::disabled;
 //static WifiState lastReportedState = WifiState::disabled;
 
 int32_t ProcessConnRequest(NetworkCommand cmd, uint32_t *buffer, size_t size)
 {
+	err("request %d not implemented\n", (int)cmd);
+
 	return ResponseUnknownCommand;
 }
 
@@ -26,7 +31,7 @@ int32_t ProcessWifiRequest(WifiClient *client, NetworkCommand cmd, uint32_t *buf
 	case NetworkCommand::networkGetStatus:				// get the network connection status
 		{
 			WifiState currentState = client->GetStatus();
-			WifiConfigData *config = client->GetConfig();
+			const WifiConfigData *config = client->GetConfig();
 			const bool runningAsAp = (currentState == WifiState::runningAsAccessPoint);
 			const bool runningAsStation = (currentState == WifiState::connected);
 
@@ -70,11 +75,15 @@ int32_t ProcessWifiRequest(WifiClient *client, NetworkCommand cmd, uint32_t *buf
 		break;
 	}
 #endif
+	err("request %d not implemented\n", (int)cmd);
+
 	return ResponseUnknownCommand;
 }
 
 int32_t ProcessMiscRequest(NetworkCommand cmd, uint32_t *buffer, size_t size)
 {
+	err("request %d not implemented\n", (int)cmd);
+
 	return ResponseUnknownCommand;
 }
 

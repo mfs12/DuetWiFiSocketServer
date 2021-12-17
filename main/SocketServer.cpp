@@ -6,6 +6,7 @@
  */
 
 
+#define DEBUG 1
 #include "Config.h"
 
 #if SOCKETSERVER_ENABLE

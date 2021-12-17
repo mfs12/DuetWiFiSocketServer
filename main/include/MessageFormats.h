@@ -122,7 +122,7 @@ struct WirelessConfigurationData
 	uint32_t gateway;
 	uint32_t netmask;
 	uint8_t channel;				// channel number to use if running as an access point, 0 means auto
-	int8_t security;				// what type of network security if running in access point mode
+	int8_t mode;					// 0 - STA  mode,  1 - AP mode
 	int8_t dummy[2];
 	char ssid[SsidLength];			// the SSID
 	char password[PasswordLength];	// the WiFi password
@@ -136,7 +136,7 @@ struct NetworkStartClientData
 };
 
 // Codes to represent the state of the network connection
-enum class WiFiState : uint8_t
+enum class WifiState : uint8_t
 {
 	disabled = 0,					// WiFi module held in reset state (not used by ESP code)
 	idle = 1,						// neither connected nor running as an access point
@@ -152,7 +152,7 @@ enum class WiFiState : uint8_t
 struct MessageHeaderEspToSam
 {
 	uint8_t formatVersion;
-	WiFiState state;
+	WifiState state;
 	uint8_t dummy[2];
 	uint32_t dummy32;
 	int32_t response;				// response length if positive, or error code if negative

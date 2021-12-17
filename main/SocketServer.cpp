@@ -46,11 +46,14 @@
 
 #include "arduino/gpio.h"
 
-#include "Process.h"
-#include "include/MessageFormats.h"
 #include "Connection.h"
 #include "Listener.h"
 #include "Misc.h"
+#include "Process.h"
+#include "include/MessageFormats.h"
+
+#define DEBUG 1
+#include "Debug.h"
 
 #define millis xTaskGetTickCount
 
@@ -83,7 +86,7 @@ static const uint32_t MaxConnectTime = 40 * 1000;		// how long we wait for WiFi 
 static uint32_t connectStartTime;
 static const int DefaultWiFiChannel = 6;
 static bool connectErrorChanged = false;
-static WifiClient *wifiClient;
+static WifiClient *wifiClient = nullptr;
 
 // mdns
 static const char * const MdnsProtocolNames[3] = { "HTTP", "FTP", "Telnet" };

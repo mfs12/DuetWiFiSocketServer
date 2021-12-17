@@ -342,7 +342,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 			lastReportedState = currentState;
 			break;
 
-		case NetworkCommand::networkListen:				// listen for incoming connections
+		case NetworkCommand::connListen:				// listen for incoming connections
 			if (messageHeaderIn.hdr.dataLength == sizeof(ListenOrConnectData))
 			{
 				messageHeaderIn.hdr.param32 = hspi.transfer32(ResponseEmpty);
@@ -365,7 +365,7 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 			}
 			break;
 
-#if 0	// We don't use the following command, instead we use networkListen with maxConnections = 0
+#if 0	// We don't use the following command, instead we use connListen with maxConnections = 0
 		case NetworkCommand::unused_networkStopListening:
 			if (messageHeaderIn.hdr.dataLength == sizeof(ListenOrConnectData))
 			{

@@ -8,7 +8,7 @@ idf_component_register(
     Process.cpp
     SocketServer.cpp
     TcpServer.c
-    WifiClient.c
+    WifiClient.cpp
     WifiConfig.cpp
     arduino/gpio.c
   INCLUDE_DIRS

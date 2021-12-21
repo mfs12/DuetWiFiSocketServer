@@ -86,7 +86,7 @@ void Listener::Stop()
 }
 
 // Set up a listener on a port, returning true if successful, or stop listening of maxConnections = 0
-/*static*/ bool Listener::Listen(uint32_t ip, uint16_t port, uint8_t protocol, uint16_t maxConns)
+bool Listener::Listen(uint32_t ip, uint16_t port, uint8_t protocol, uint16_t maxConns)
 {
 	// See if we are already listing for this
 	for (Listener *p = activeList; p != nullptr; )
@@ -164,7 +164,7 @@ void Listener::Stop()
 }
 
 // Stop listening on the specified port, or on all ports if 'port' is zero
-/*static*/ void Listener::StopListening(uint16_t port)
+void Listener::StopListening(uint16_t port)
 {
 	for (Listener *p = activeList; p != nullptr; )
 	{
@@ -177,7 +177,7 @@ void Listener::Stop()
 	}
 }
 
-/*static*/ uint16_t Listener::GetPortByProtocol(uint8_t protocol)
+uint16_t Listener::GetPortByProtocol(uint8_t protocol)
 {
 	for (Listener *p = activeList; p != nullptr; p = p->next)
 	{
@@ -189,7 +189,7 @@ void Listener::Stop()
 	return 0;
 }
 
-/*static*/ Listener *Listener::Allocate()
+Listener *Listener::Allocate()
 {
 	Listener *ret = freeList;
 	if (ret != nullptr)
@@ -204,7 +204,7 @@ void Listener::Stop()
 	return ret;
 }
 
-/*static*/ void Listener::Unlink(Listener *lst)
+void Listener::Unlink(Listener *lst)
 {
 	Listener **pp = &activeList;
 	while (*pp != nullptr)
@@ -218,7 +218,7 @@ void Listener::Stop()
 	}
 }
 
-/*static*/ void Listener::Release(Listener *lst)
+void Listener::Release(Listener *lst)
 {
 	lst->next = freeList;
 	freeList = lst;

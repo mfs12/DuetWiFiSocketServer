@@ -73,7 +73,8 @@ static const char* prevLastError = nullptr;
 
 // led
 static const bool ONBOARD_LED_ON = false;
-static const uint32_t ONBOARD_LED_BLINK_INTERVAL = 500;	// ms
+static const uint32_t ONBOARD_LED_BLINK_CHANGE = 100;	// ms
+static const uint32_t ONBOARD_LED_BLINK_STABLE = 200;	// ms
 static uint32_t lastBlinkTime = 0;
 
 // spi
@@ -90,6 +91,7 @@ static uint32_t connectStartTime;
 static const int DefaultWiFiChannel = 6;
 static bool connectErrorChanged = false;
 static WifiClient *wifiClient = nullptr;
+static WifiConfigData wifiConfig;
 
 // mdns
 static const char * const MdnsProtocolNames[3] = { "HTTP", "FTP", "Telnet" };
@@ -119,33 +121,43 @@ static void led_blink(void)
 {
 	uint32_t now = millis();
 
-#if 1
-	if (now - lastBlinkTime > ONBOARD_LED_BLINK_INTERVAL)
-#else
-	if ((now - lastBlinkTime > ONBOARD_LED_BLINK_INTERVAL) &&
-	    (currentState == WifiState::autoReconnecting ||
-	     currentState == WifiState::connecting ||
-	     currentState == WifiState::reconnecting))
-#endif
+	assert(wifiClient);
+
+	switch (wifiClient->GetStatus())
 	{
-		lastBlinkTime = now;
-		gpio_set_level(OnBoardLed, !gpio_get_level(OnBoardLed));
+	case WifiState::autoReconnecting:
+	case WifiState::connecting:
+	case WifiState::reconnecting:
+		if (now - lastBlinkTime > ONBOARD_LED_BLINK_CHANGE)
+		{
+			lastBlinkTime = now;
+			gpio_set_level(OnBoardLed, !gpio_get_level(OnBoardLed));
+		}
+		break;
+	default:
+		if (now - lastBlinkTime > ONBOARD_LED_BLINK_STABLE)
+		{
+			lastBlinkTime = now;
+			gpio_set_level(OnBoardLed, !gpio_get_level(OnBoardLed));
+		}
+		break;
 	}
 }
 
-static void gpio_isr_handler(void *arg)
+static EventGroupHandle_t globalEventGroup;
+#define APP_EVENT_RRF BIT0
+#define APP_EVENT_WIFI BIT1
+#define APP_EVENT_TCP BIT2
+#define APP_EVENT_ALL (APP_EVENT_RRF | APP_EVENT_WIFI | APP_EVENT_TCP)
+
+static void GpioIsrHandler(void *arg)
 {
-	//gpio_num_t gpio = static_cast<gpio_num_t>(arg);
-	transferReadyChanged = true;
+	int event = (int)(arg);
+	xEventGroupSetBitsFromISR(globalEventGroup, event, nullptr);
 }
 
 static int app_init(void)
 {
-#if 0
-	wifi_init_sta();
-	dwss_spiffs_init();
-	TcpServer_init();
-#else
 	esp_err_t err;
 
 	gpio_config_t led_gpio;
@@ -189,8 +201,7 @@ static int app_init(void)
 	gpio_set_level(EspReqTransferPin, 0);
 
 	gpio_config_t receive_gpio;
-	receive_gpio.intr_type = GPIO_INTR_ANYEDGE;
-	//receive_gpio.intr_type = GPIO_INTR_DISABLE;
+	receive_gpio.intr_type = GPIO_INTR_POSEDGE;
 	receive_gpio.mode = GPIO_MODE_INPUT;
 	receive_gpio.pin_bit_mask = BIT(SamTfrReadyPin);
 	receive_gpio.pull_down_en = GPIO_PULLDOWN_DISABLE;
@@ -207,7 +218,7 @@ static int app_init(void)
 		err("failed to disable gpio isr service.\n");
 		return -1;
 	}
-	gpio_isr_handler_add(SamTfrReadyPin, gpio_isr_handler, (void *)SamTfrReadyPin);
+	gpio_isr_handler_add(SamTfrReadyPin, GpioIsrHandler, (void *)APP_EVENT_RRF);
 	if (err)
 	{
 		err("failed to add gpio isr.\n");
@@ -216,16 +227,47 @@ static int app_init(void)
 
 	hspi.InitMaster(SPI_MODE1, defaultClockControl, true);
 
-	arduino_setup();
+	globalEventGroup = xEventGroupCreate();
+	if (!globalEventGroup)
+	{
+		err("failed to create gpio event group\n");
+		return -1;
+	}
 
+	// wifi dependencies
 	tcpip_adapter_init();
-
 	ESP_ERROR_CHECK(esp_event_loop_create_default());
 
-	wifiClient = new WifiClient();
+	ESP_ERROR_CHECK(nvs_flash_init());
+
+	wifiClient = new WifiClient(globalEventGroup);
+
+	wifiConfig.ip = 0,
+	wifiConfig.gateway = 0,
+	wifiConfig.netmask = 0,
+	wifiConfig.channel = DefaultWiFiChannel,
+	wifiConfig.mode = WIFI_MODE_STA,
+	SafeStrncpy(wifiConfig.ssid, CONFIG_WIFI_SSID_DEFAULT, sizeof(wifiConfig.ssid));
+	SafeStrncpy(wifiConfig.password, CONFIG_WIFI_PASSWORD_DEFAULT, sizeof(wifiConfig.password));
+
+	wifiClient->SetConfig(&wifiConfig);
+#if 1
+	TcpServer_init();
+
+	Connection::Init();
+	Listener::Init();
 #endif
 
 	return 0;
+}
+
+static void signalChange(void)
+{
+	// signal status change
+	gpio_set_level(EspReqTransferPin, 0);
+	vTaskDelay(10 / portTICK_PERIOD_MS);
+	gpio_set_level(EspReqTransferPin, 1);
+	vTaskDelay(10 / portTICK_PERIOD_MS);
 }
 
 void app_main(void)
@@ -245,42 +287,72 @@ void app_main(void)
 
 	app_init();
 
-	vTaskDelay(2000 / portTICK_PERIOD_MS);
+	info("Init - Done\n");
 
 #if 1
 
-	// esp is ready
-	gpio_set_level(EspReqTransferPin, 1);
-	vTaskDelay(100 / portTICK_PERIOD_MS);
+	WifiState oldState = wifiClient->GetStatus();
+
+	esp_err_t err;
+
+	err = wifiClient->Start();
+	if (err)
+	{
+		err("failed to start client %d\n", err);
+	}
+
+	signalChange();
 
 	for (;;) {
 		// toggle led
 		led_blink();
 
-		// TODO use interrupt to handle this
-		if (!gpio_get_level(SamTfrReadyPin)) {
-			debug("rrf not ready\n");
-			vTaskDelay(50 / portTICK_PERIOD_MS);
+		vTaskDelay(10 / portTICK_PERIOD_MS);
+		EventBits_t bits = xEventGroupWaitBits(globalEventGroup, APP_EVENT_ALL,
+					pdTRUE, pdFALSE, 1000 / portTICK_PERIOD_MS);
+		if (!bits)
+		{
+			debug("timeout\n");
 			continue;
 		}
-		debug("rrf ready\n");
 
+		debug("bits %08x\n", (int)bits);
+
+		if (bits & APP_EVENT_WIFI && wifiClient->Process() < 0)
+		{
+			err("error processing wifiClient.\n");
+			break;
+		}
+
+		WifiState state = wifiClient->GetStatus();
+		//debug("running...\n");
+		if (bits & APP_EVENT_ALL)
+		{
+			signalChange();
+
+			debug("event %02x wifi state %d -> %d\n", bits, (int)oldState, (int)state);
+			bits = 0;
+			oldState = state;
+		}
+		else
+		{
+			debug("waiting for event...\n");
+			continue;
+		}
+#if 1
 		// activate spi CS
 		gpio_set_level(SamCsPin, 0);
+		vTaskDelay(10 / portTICK_PERIOD_MS);
 
-		// do spi communication
 		ProcessRequest();
+
 		transferReadyChanged = false;
 		lastSpiTransferTime = millis();
 
 		// deactivate spi CS
 		gpio_set_level(SamCsPin, 1);
-#if 0
-		// error detected
-		gpio_set_level(EspReqTransferPin, 0);
-		vTaskDelay(10 / portTICK_PERIOD_MS);
-		gpio_set_level(EspReqTransferPin, 1);
-		vTaskDelay(10 / portTICK_PERIOD_MS);
+
+		debug("processing - done\n");
 #endif
 	}
 #else
@@ -294,6 +366,8 @@ void app_main(void)
 		vTaskDelay(500 / portTICK_PERIOD_MS);
 	}
 #endif
+	nvs_flash_deinit();
+
 	info("Restarting now.\n");
 	fflush(stdout);
 	esp_restart();
@@ -794,8 +868,7 @@ static void ICACHE_RAM_ATTR SendResponse(const uint32_t *buffer, size_t size)
 	}
 }
 
-// This is called when the SAM is asking to transfer data
-static void ICACHE_RAM_ATTR ProcessRequest()
+static int ReceiveRequest(NetworkCommand *cmd, uint32_t *buffer, size_t size)
 {
 	static union
 	{
@@ -813,47 +886,86 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 	msgOut.hdr.formatVersion = MyFormatVersion;
 	msgOut.hdr.state = WifiState::idle;
 
-	// Begin the transaction
-	hspi.beginTransaction();
-
-	// Exchange headers, except for the last dword which will contain our response
+	// Exchange headers, except for the last dword which will contain our response if message has no data payload
 	hspi.transferDwords(msgOut.asDwords, msgIn.asDwords, headerDwords - 1);
 
 	if (msgIn.hdr.formatVersion != MyFormatVersion)
 	{
-		SendErrorResponse(ResponseBadRequestFormatVersion);
+		return ResponseBadRequestFormatVersion;
 	}
-	else if (msgIn.hdr.dataLength > MaxDataLength)
+	else if (msgIn.hdr.dataLength > size)
 	{
-		SendErrorResponse(ResponseBadDataLength);
+		return ResponseBadDataLength;
 	}
-	else
+
+	if (msgIn.hdr.dataLength > 0)
 	{
-		NetworkCommand cmd = msgIn.hdr.command;
-		int32_t resp = ResponseUnknownCommand;
+		// TODO strange behavior, pop up param32 which follows after data length
+		msgIn.hdr.param32 = hspi.transfer32(ResponseEmpty);
 
-		if (cmd >= NetworkCommand::connMin && cmd <= NetworkCommand::connMax)
-		{
-			resp = ProcessConnRequest(cmd, transferBuffer, sizeof(transferBuffer));
-		}
-		else if (cmd >= NetworkCommand::networkWifiMin && cmd <= NetworkCommand::networkWifiMax)
-		{
-			resp = ProcessWifiRequest(wifiClient, cmd, transferBuffer, sizeof(transferBuffer));
-		}
-		else if (cmd >= NetworkCommand::networkMiscMin && cmd <= NetworkCommand::networkMiscMax)
-		{
-			resp = ProcessMiscRequest(cmd, transferBuffer, sizeof(transferBuffer));
-		}
+		hspi.transferDwords(nullptr, transferBuffer, NumDwords(msgIn.hdr.dataLength));
+		reinterpret_cast<char *>(transferBuffer)[msgIn.hdr.dataLength] = 0;
+	}
 
-		if (resp <= 0)
-		{
-			SendErrorResponse(resp);
-			err("received unknown command %d\n", static_cast<int>(cmd));
-		}
-		else
-		{
-			SendResponse(transferBuffer, resp);
-		}
+	*cmd = msgIn.hdr.command;
+
+	return msgIn.hdr.dataLength;
+}
+
+// This is called when the SAM is asking to transfer data
+static void ICACHE_RAM_ATTR ProcessRequest()
+{
+	NetworkCommand cmd = NetworkCommand::nullCommand;
+
+	// Begin the transaction
+	hspi.beginTransaction();
+
+#if 1
+	int result = ReceiveRequest(&cmd, transferBuffer, sizeof(transferBuffer));
+	if (result < 0)
+	{
+		SendErrorResponse(result);
+		return;
+	}
+#endif
+	int32_t resp = ResponseUnknownCommand;
+	int len;
+
+	len = result;
+	if (result == 0)
+	{
+		// response is expected
+		len = sizeof(transferBuffer);
+	}
+
+#if 1
+	if (cmd >= NetworkCommand::connMin && cmd <= NetworkCommand::connMax)
+	{
+		resp = ProcessConnRequest(cmd, transferBuffer, len);
+	}
+	else if (cmd >= NetworkCommand::networkWifiMin && cmd <= NetworkCommand::networkWifiMax)
+	{
+		resp = ProcessWifiRequest(wifiClient, cmd, transferBuffer, len);
+	}
+	else if (cmd >= NetworkCommand::networkMiscMin && cmd <= NetworkCommand::networkMiscMax)
+	{
+		resp = ProcessMiscRequest(cmd, transferBuffer, len);
+	}
+#endif
+
+	debug("processed cmd %d len %d resp %d\n", (int)cmd, (int)len, resp);
+
+	if (resp <= 0)
+	{
+		SendErrorResponse(resp);
+		if (resp < 0)
+			err("error processing command %d resp %d\n", static_cast<int>(cmd), resp);
+	}
+	else if (resp > 0)
+	{
+		debug("cmd %d resp %d\n", (int)cmd, resp);
+
+		SendResponse(transferBuffer, resp);
 	}
 
 	hspi.endTransaction();

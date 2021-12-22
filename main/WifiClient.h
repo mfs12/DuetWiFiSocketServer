@@ -3,11 +3,13 @@
 
 
 extern "C" {
-	void wifi_init_sta(void);
-}
+
+#include "esp_event.h"
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/event_groups.h"
+
+}
 
 #include "WifiConfig.h"
 #include "include/MessageFormats.h"
@@ -16,25 +18,30 @@ class WifiClient
 {
 private:
 	WifiState state;
-	WifiConfigData *config;
+	const WifiConfigData *config;
 
 	int Scan();
 	int GetScanResults();
 public:
-	WifiClient();
+	WifiClient(EventGroupHandle_t global);
 	~WifiClient();
 
-	EventGroupHandle_t eventGroup; // should be private
 	int connectRetryNum = 0; // should be private
 
+	EventGroupHandle_t eventGroup; // should be private
+	EventGroupHandle_t eventGlobal; // should be private
+
 	int SetConfig(const WifiConfigData *config);
-	WifiConfigData *GetConfig();
+	const WifiConfigData *GetConfig();
 	WifiState GetStatus();
 
 	int Start();
-	int Stop();
-	int Wait();
 	int StartAccessPoint();
+	int Process();
+	int Stop();
+
+	static void EventHandler(void* arg, esp_event_base_t event_base,
+				int32_t event_id, void* event_data);
 };
 
 #endif /* ifndef WIFI_CLIENT_H */

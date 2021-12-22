@@ -3,14 +3,21 @@
 #include <cassert>
 #include <cstring>
 
+extern "C" {
+
 #include "freertos/task.h"
 
-#include "esp_event.h"
 #include "esp_log.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
 
-/* The examples use WiFi configuration that you can set via project configuration menu
+#include "nvs.h"
+#include "nvs_flash.h"
+
+}
+
+#define DEBUG 0
+#include "Debug.h"
 
    If you'd rather not, just change the below entries to strings with
    the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
@@ -24,13 +31,14 @@
  * - we failed to connect after the maximum amount of retries */
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
+#define WIFI_ALL_BITS 0xffffffff
 
-static const char *TAG = "wifi station";
+static const char *TAG = __FILE__;
 
-static void EventHandler(void* arg, esp_event_base_t event_base,
+void WifiClient::EventHandler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
 {
-	WifiClient *client = reinterpret_cast<WifiClient *>(event_data);
+	WifiClient *client = reinterpret_cast<WifiClient *>(arg);
 
 	if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
 		esp_wifi_connect();
@@ -45,25 +53,37 @@ static void EventHandler(void* arg, esp_event_base_t event_base,
 		ESP_LOGI(TAG,"connect to the AP fail");
 	} else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
 		ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
-		ESP_LOGI(TAG, "got ip:%s",
-				ip4addr_ntoa(&event->ip_info.ip));
+		ESP_LOGI(TAG, "got ip:%s", ip4addr_ntoa(&event->ip_info.ip));
 		client->connectRetryNum = 0;
 		xEventGroupSetBits(client->eventGroup, WIFI_CONNECTED_BIT);
+		xEventGroupSetBits(client->eventGlobal, (1 << 1));
 	}
 }
 
-WifiClient::WifiClient()
+
+WifiClient::WifiClient(EventGroupHandle_t global)
 {
-	config = nullptr;
-	state = WifiState::idle;
+	state = WifiState::disabled;
+
+	eventGlobal = global;
 
 	eventGroup = xEventGroupCreate();
+	if (eventGroup == nullptr)
+	{
+		err("failed to create event group.\n");
+	}
+
+	// wifi dependencies
+	tcpip_adapter_init();
+	ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+	ESP_ERROR_CHECK(nvs_flash_init());
 
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
-	ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, &EventHandler, this));
-	ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, IP_EVENT_STA_GOT_IP, &EventHandler, this));
+	ESP_ERROR_CHECK(esp_event_handler_register(WIFI_EVENT, ESP_EVENT_ANY_ID, EventHandler, this));
+	ESP_ERROR_CHECK(esp_event_handler_register(IP_EVENT, ESP_EVENT_ANY_ID, EventHandler, this));
 
 	return;
 }
@@ -77,38 +97,15 @@ WifiClient::~WifiClient()
 	esp_wifi_deinit();
 }
 
-int WifiClient::SetConfig(const WifiConfigData *config)
+int WifiClient::SetConfig(const WifiConfigData *newConfig)
 {
-	esp_err_t err;
+	config = newConfig;
 
-	wifi_config_t wifi_config;
-
-	assert(config);
-
-	strncpy((char *)wifi_config.sta.ssid, config->ssid, sizeof(wifi_config.sta.ssid));
-	strncpy((char *)wifi_config.sta.password, config->password, sizeof(wifi_config.sta.password));
-
-	/* Setting a password implies station will connect to all security modes including WEP/WPA.
-	 * However these modes are deprecated and not advisable to be used. Incase your Access point
-	 * doesn't support WPA2, these mode can be enabled by commenting below line */
-
-	if (strlen((char *)wifi_config.sta.password)) {
-		wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
-	}
-
-	err = esp_wifi_set_mode(config->mode ? WIFI_MODE_STA : WIFI_MODE_AP);
-	if (err)
-	{
-		return err;
-	}
-
-	err = esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config);
-
-	return err;
+	return 0;
 }
 
 
-WifiConfigData *WifiClient::GetConfig()
+const WifiConfigData *WifiClient::GetConfig()
 {
 	return config;
 }
@@ -123,6 +120,53 @@ int WifiClient::Start()
 {
 	esp_err_t err;
 
+	debug("starting\n");
+
+	if (state == WifiState::connecting ||
+	    state == WifiState::connected)
+	{
+		debug("already connected\n");
+		return 0;
+	}
+
+	debug("connecting\n");
+	state = WifiState::connecting;
+	//state = WifiState::connected;
+
+	wifi_config_t wifi_config;
+
+	debug("cofiguring\n");
+	assert(config);
+
+	memset(&wifi_config, 0, sizeof(wifi_config));
+
+	strncpy((char *)wifi_config.sta.ssid, config->ssid, sizeof(wifi_config.sta.ssid));
+	strncpy((char *)wifi_config.sta.password, config->password, sizeof(wifi_config.sta.password));
+
+	debug("copied %s %s\n", config->ssid, config->password);
+
+	if (strlen((char *)wifi_config.sta.password)) {
+		wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
+	}
+
+	debug("setting mode\n");
+	//err = esp_wifi_set_mode(config->mode ? WIFI_MODE_STA : WIFI_MODE_AP);
+	err = esp_wifi_set_mode(WIFI_MODE_STA);
+	if (err)
+	{
+		err("failed to configure mode.\n");
+		return err;
+	}
+
+	debug("setting config\n");
+	err = esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config);
+	if (err)
+	{
+		err("failed to set config.\n");
+		return err;
+	}
+
+	debug("starting\n");
 	err = esp_wifi_start();
 
 	ESP_LOGI(TAG, "wifi_init_sta finished.");
@@ -134,31 +178,47 @@ int WifiClient::Stop()
 {
 	esp_err_t err = esp_wifi_stop();
 
+	state = WifiState::idle;
+
 	return err;
 }
 
-int WifiClient::Wait()
+int WifiClient::Process()
 {
-	/* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
-	 * number of re-tries (WIFI_FAIL_BIT). The bits are set by EventHandler() (see above) */
+#if 1
+	EventBits_t bits = xEventGroupClearBits(eventGroup, WIFI_ALL_BITS);
+#else
+	debug("processing\n");
 	EventBits_t bits = xEventGroupWaitBits(eventGroup,
-			WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
-			pdFALSE,
-			pdFALSE,
-			portMAX_DELAY);
+            WIFI_CONNECTED_BIT | WIFI_FAIL_BIT,
+            pdTRUE,
+            pdFALSE,
+            portMAX_DELAY);
+	debug("waiting done\n");
+#endif
 
-	/* xEventGroupWaitBits() returns the bits before the call returned, hence we can test which event actually
-	 * happened. */
+	if (bits == 0)
+	{
+		//debug("nothing to do\n");
+		return 0;
+	}
+
 	if (bits & WIFI_CONNECTED_BIT) {
-		ESP_LOGI(TAG, "connected to ap SSID:%s password:%s",
+		info("connected to ap SSID:%s password:%s",
 				WIFI_CLIENT_WIFI_SSID, "xxx");
 		//WIFI_CLIENT_WIFI_SSID, WIFI_CLIENT_WIFI_PASS);
-	} else if (bits & WIFI_FAIL_BIT) {
-		ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s",
+		state = WifiState::connected;
+		bits &= ~WIFI_CONNECTED_BIT;
+	}
+	if (bits & WIFI_FAIL_BIT) {
+		err("Failed to connect to SSID:%s, password:%s",
 				WIFI_CLIENT_WIFI_SSID, "xxx");
 		//WIFI_CLIENT_WIFI_SSID, WIFI_CLIENT_WIFI_PASS);
-	} else {
-		ESP_LOGE(TAG, "UNEXPECTED EVENT");
+		state = WifiState::reconnecting;
+		bits &= ~WIFI_FAIL_BIT;
+	}
+	if (bits) {
+		warn("unexpected event %08x", bits);
 	}
 
 	return 0;

@@ -5,8 +5,6 @@
 
 #include <cstdint>
 
-#include "Debug.h"
-
 #define SOCKETSERVER_ENABLE 1
 #define CONNECTION_ENABLE 1
 #define HSPI_ENABLE 1

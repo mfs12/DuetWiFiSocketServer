@@ -3,7 +3,7 @@
 
 #include <cstdio>
 
-#ifdef DEBUG
+#if DEBUG
 #define debug(fmt, args...)	do { printf("DBG %s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)
 #else
 #define debug(_format, ...)	do {} while(false)

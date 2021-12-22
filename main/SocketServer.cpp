@@ -5,14 +5,11 @@
  *      Author: David
  */
 
-
-#define DEBUG 1
 #include "Config.h"
 
 #if SOCKETSERVER_ENABLE
 
-#include <cstdio>
-#include <cstring>
+extern "C" {
 
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
@@ -23,9 +20,29 @@
 #include "esp_system.h"
 #include "esp_wifi.h"
 
+#include "nvs.h"
+#include "nvs_flash.h"
+
+}
+
+#include <cstdarg>
+#include <cstdio>
+#include <cstring>
+
+#include "arduino/gpio.h"
+#include "include/MessageFormats.h"
+
+#include "Connection.h"
 #include "DwssSpiffs.h"
+#include "HSPI.h"
+#include "Listener.h"
+#include "Misc.h"
+#include "Process.h"
 #include "TcpServer.h"
 #include "WifiClient.h"
+
+#define DEBUG 1
+#include "Debug.h"
 
 #if 0
 
@@ -40,20 +57,6 @@
 #define array
 
 #endif
-
-#include <cstdarg>
-#include "HSPI.h"
-
-#include "arduino/gpio.h"
-
-#include "Connection.h"
-#include "Listener.h"
-#include "Misc.h"
-#include "Process.h"
-#include "include/MessageFormats.h"
-
-#define DEBUG 1
-#include "Debug.h"
 
 #define millis xTaskGetTickCount
 

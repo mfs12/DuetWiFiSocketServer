@@ -313,6 +313,7 @@ void app_main(void)
 		if (!bits)
 		{
 			debug("timeout\n");
+			signalChange();
 			continue;
 		}
 
@@ -328,7 +329,8 @@ void app_main(void)
 		//debug("running...\n");
 		if (bits & APP_EVENT_ALL)
 		{
-			signalChange();
+			if (bits & (APP_EVENT_WIFI | APP_EVENT_TCP))
+				signalChange();
 
 			debug("event %02x wifi state %d -> %d\n", bits, (int)oldState, (int)state);
 			bits = 0;
@@ -346,7 +348,6 @@ void app_main(void)
 
 		ProcessRequest();
 
-		transferReadyChanged = false;
 		lastSpiTransferTime = millis();
 
 		// deactivate spi CS
@@ -884,7 +885,7 @@ static int ReceiveRequest(NetworkCommand *cmd, uint32_t *buffer, size_t size)
 
 	msgIn.hdr.formatVersion = InvalidFormatVersion;
 	msgOut.hdr.formatVersion = MyFormatVersion;
-	msgOut.hdr.state = WifiState::idle;
+	msgOut.hdr.state = (wifiClient) ? wifiClient->GetStatus() : WifiState::disabled;
 
 	// Exchange headers, except for the last dword which will contain our response if message has no data payload
 	hspi.transferDwords(msgOut.asDwords, msgIn.asDwords, headerDwords - 1);
@@ -937,6 +938,8 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 		// response is expected
 		len = sizeof(transferBuffer);
 	}
+
+	debug("received cmd %d len %d res %d.\n", (int)cmd, len, result);
 
 #if 1
 	if (cmd >= NetworkCommand::connMin && cmd <= NetworkCommand::connMax)

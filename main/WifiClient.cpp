@@ -11,9 +11,6 @@ extern "C" {
 #include "esp_system.h"
 #include "esp_wifi.h"
 
-#include "nvs.h"
-#include "nvs_flash.h"
-
 }
 
 #define DEBUG 0
@@ -73,12 +70,6 @@ WifiClient::WifiClient(EventGroupHandle_t global)
 		err("failed to create event group.\n");
 	}
 
-	// wifi dependencies
-	tcpip_adapter_init();
-	ESP_ERROR_CHECK(esp_event_loop_create_default());
-
-	ESP_ERROR_CHECK(nvs_flash_init());
-
 	wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
 	ESP_ERROR_CHECK(esp_wifi_init(&cfg));
 
@@ -120,7 +111,7 @@ int WifiClient::Start()
 {
 	esp_err_t err;
 
-	debug("starting\n");
+	debug("starting...\n");
 
 	if (state == WifiState::connecting ||
 	    state == WifiState::connected)
@@ -129,36 +120,27 @@ int WifiClient::Start()
 		return 0;
 	}
 
-	debug("connecting\n");
 	state = WifiState::connecting;
-	//state = WifiState::connected;
 
 	wifi_config_t wifi_config;
 
-	debug("cofiguring\n");
 	assert(config);
 
 	memset(&wifi_config, 0, sizeof(wifi_config));
 
 	strncpy((char *)wifi_config.sta.ssid, config->ssid, sizeof(wifi_config.sta.ssid));
 	strncpy((char *)wifi_config.sta.password, config->password, sizeof(wifi_config.sta.password));
-
-	debug("copied %s %s\n", config->ssid, config->password);
-
 	if (strlen((char *)wifi_config.sta.password)) {
 		wifi_config.sta.threshold.authmode = WIFI_AUTH_WPA2_PSK;
 	}
 
-	debug("setting mode\n");
-	//err = esp_wifi_set_mode(config->mode ? WIFI_MODE_STA : WIFI_MODE_AP);
-	err = esp_wifi_set_mode(WIFI_MODE_STA);
+	err = esp_wifi_set_mode((wifi_mode_t)config->mode);
 	if (err)
 	{
 		err("failed to configure mode.\n");
 		return err;
 	}
 
-	debug("setting config\n");
 	err = esp_wifi_set_config(ESP_IF_WIFI_STA, &wifi_config);
 	if (err)
 	{
@@ -166,10 +148,9 @@ int WifiClient::Start()
 		return err;
 	}
 
-	debug("starting\n");
 	err = esp_wifi_start();
 
-	ESP_LOGI(TAG, "wifi_init_sta finished.");
+	debug(TAG, "starting - done.\n");
 
 	return err;
 }
@@ -185,6 +166,7 @@ int WifiClient::Stop()
 
 int WifiClient::Process()
 {
+	assert(config);
 #if 1
 	EventBits_t bits = xEventGroupClearBits(eventGroup, WIFI_ALL_BITS);
 #else
@@ -204,21 +186,18 @@ int WifiClient::Process()
 	}
 
 	if (bits & WIFI_CONNECTED_BIT) {
-		info("connected to ap SSID:%s password:%s",
-				WIFI_CLIENT_WIFI_SSID, "xxx");
-		//WIFI_CLIENT_WIFI_SSID, WIFI_CLIENT_WIFI_PASS);
+		info("connected to ap SSID:%s password:%s\n", config->ssid, "xxx");
+
 		state = WifiState::connected;
 		bits &= ~WIFI_CONNECTED_BIT;
 	}
 	if (bits & WIFI_FAIL_BIT) {
-		err("Failed to connect to SSID:%s, password:%s",
-				WIFI_CLIENT_WIFI_SSID, "xxx");
-		//WIFI_CLIENT_WIFI_SSID, WIFI_CLIENT_WIFI_PASS);
+		err("connected to ap SSID:%s\n", config->ssid);
 		state = WifiState::reconnecting;
 		bits &= ~WIFI_FAIL_BIT;
 	}
 	if (bits) {
-		warn("unexpected event %08x", bits);
+		warn("unexpected event %08x", (int)bits);
 	}
 
 	return 0;

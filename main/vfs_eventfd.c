@@ -29,10 +29,21 @@
 #include "esp_vfs.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/portmacro.h"
-#include "soc/spinlock.h"
 
 #define FD_INVALID -1
 #define FD_PENDING_SELECT -2
+
+#define portENTER_CRITICAL_ISR(...) do {} while (0)
+#define portEXIT_CRITICAL_ISR(...) do {} while (0)
+
+#define xPortCanYield() true
+#define spinlock_initialize(...) do {} while (0)
+#define esp_vfs_register_fd_with_local_fd(...) 0
+#define esp_vfs_unregister_with_id(...) 0
+
+
+
+typedef void * spinlock_t;
 
 /*
  * About the event_select_args_t linked list
@@ -116,7 +127,7 @@ static esp_err_t event_start_select(int                  nfds,
         _lock_acquire_recursive(&s_events[i].lock);
         if (s_events[i].fd == i) {
             if (s_events[i].support_isr) {
-                portENTER_CRITICAL(&s_events[i].data_spin_lock);
+                portENTER_CRITICAL();
             }
 
             event_select_args_t *event_select_args =
@@ -155,7 +166,7 @@ static esp_err_t event_start_select(int                  nfds,
             s_events[i].select_args = event_select_args;
 
             if (s_events[i].support_isr) {
-                portEXIT_CRITICAL(&s_events[i].data_spin_lock);
+                portEXIT_CRITICAL();
             }
         }
         _lock_release_recursive(&s_events[i].lock);
@@ -179,7 +190,7 @@ static esp_err_t event_end_select(void *end_select_args)
 
         _lock_acquire_recursive(&event->lock);
         if (event->support_isr) {
-            portENTER_CRITICAL(&event->data_spin_lock);
+            portENTER_CRITICAL();
         }
 
         if (event->fd != select_args->fd) { // already closed
@@ -210,7 +221,7 @@ static esp_err_t event_end_select(void *end_select_args)
         }
 
         if (event->support_isr) {
-            portEXIT_CRITICAL(&event->data_spin_lock);
+            portEXIT_CRITICAL();
         }
         _lock_release_recursive(&event->lock);
 
@@ -239,7 +250,7 @@ static ssize_t signal_event_fd_from_isr(int fd, const void *data, size_t size)
         ret = -1;
     }
 
-    portEXIT_CRITICAL_ISR(&s_events[fd].data_spin_lock);
+    portEXIT_CRITICAL();
 
     if (task_woken) {
         portYIELD_FROM_ISR();
@@ -267,7 +278,7 @@ static ssize_t event_write(int fd, const void *data, size_t size)
 
         _lock_acquire_recursive(&s_events[fd].lock);
         if (s_events[fd].support_isr) {
-            portENTER_CRITICAL(&s_events[fd].data_spin_lock);
+            portENTER_CRITICAL();
         }
 
         if (s_events[fd].fd == fd) {
@@ -277,7 +288,7 @@ static ssize_t event_write(int fd, const void *data, size_t size)
             trigger_select_for_event(&s_events[fd]);
 
             if (s_events[fd].support_isr) {
-                portEXIT_CRITICAL(&s_events[fd].data_spin_lock);
+                portEXIT_CRITICAL();
             }
         } else {
             errno = EBADF;
@@ -301,7 +312,7 @@ static ssize_t event_read(int fd, void *data, size_t size)
 
     _lock_acquire_recursive(&s_events[fd].lock);
     if (s_events[fd].support_isr) {
-        portENTER_CRITICAL(&s_events[fd].data_spin_lock);
+        portENTER_CRITICAL();
     }
 
     if (s_events[fd].fd == fd) {
@@ -315,7 +326,7 @@ static ssize_t event_read(int fd, void *data, size_t size)
     }
 
     if (s_events[fd].support_isr) {
-        portEXIT_CRITICAL(&s_events[fd].data_spin_lock);
+        portEXIT_CRITICAL();
     }
     _lock_release_recursive(&s_events[fd].lock);
 
@@ -334,7 +345,7 @@ static int event_close(int fd)
     _lock_acquire_recursive(&s_events[fd].lock);
     if (s_events[fd].fd == fd) {
         if (s_events[fd].support_isr) {
-            portENTER_CRITICAL(&s_events[fd].data_spin_lock);
+            portENTER_CRITICAL();
         }
         if (s_events[fd].select_args == NULL) {
             s_events[fd].fd = FD_INVALID;
@@ -344,7 +355,7 @@ static int event_close(int fd)
         }
         s_events[fd].value = 0;
         if (s_events[fd].support_isr) {
-            portEXIT_CRITICAL(&s_events[fd].data_spin_lock);
+            portEXIT_CRITICAL();
         }
         ret = 0;
     } else {
@@ -432,13 +443,13 @@ int eventfd(unsigned int initval, int flags)
             spinlock_initialize(&s_events[i].data_spin_lock);
 
             if (support_isr) {
-                portENTER_CRITICAL(&s_events[i].data_spin_lock);
+                portENTER_CRITICAL();
             }
             s_events[i].is_set = false;
             s_events[i].value = initval;
             s_events[i].select_args = NULL;
             if (support_isr) {
-                portEXIT_CRITICAL(&s_events[i].data_spin_lock);
+                portEXIT_CRITICAL();
             }
             _lock_release_recursive(&s_events[i].lock);
             break;

@@ -34,8 +34,6 @@
 #define FD_PENDING_SELECT -2
 
 #define xPortCanYield() !interrupt_is_disable()
-#define esp_vfs_register_fd_with_local_fd(...) 0
-#define esp_vfs_unregister_with_id(...) 0
 
 /*
  * About the event_select_args_t linked list

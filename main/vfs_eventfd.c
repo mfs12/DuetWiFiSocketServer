@@ -33,17 +33,9 @@
 #define FD_INVALID -1
 #define FD_PENDING_SELECT -2
 
-#define portENTER_CRITICAL_ISR(...) do {} while (0)
-#define portEXIT_CRITICAL_ISR(...) do {} while (0)
-
-#define xPortCanYield() true
-#define spinlock_initialize(...) do {} while (0)
+#define xPortCanYield() !interrupt_is_disable()
 #define esp_vfs_register_fd_with_local_fd(...) 0
 #define esp_vfs_unregister_with_id(...) 0
-
-
-
-typedef void * spinlock_t;
 
 /*
  * About the event_select_args_t linked list
@@ -79,8 +71,6 @@ typedef struct {
     // a double-linked list for all pending select args with this fd
     event_select_args_t     *select_args;
     _lock_t                 lock;
-    // only for event fds that support ISR.
-    spinlock_t              data_spin_lock;
 } event_context_t;
 
 esp_vfs_id_t s_eventfd_vfs_id = -1;
@@ -239,7 +229,7 @@ static ssize_t signal_event_fd_from_isr(int fd, const void *data, size_t size)
     const uint64_t *val = (const uint64_t *)data;
     ssize_t ret = size;
 
-    portENTER_CRITICAL_ISR(&s_events[fd].data_spin_lock);
+    portENTER_CRITICAL();
 
     if (s_events[fd].fd == fd) {
         s_events[fd].is_set = true;
@@ -440,7 +430,6 @@ int eventfd(unsigned int initval, int flags)
             fd = i;
             s_events[i].fd = i;
             s_events[i].support_isr = support_isr;
-            spinlock_initialize(&s_events[i].data_spin_lock);
 
             if (support_isr) {
                 portENTER_CRITICAL();

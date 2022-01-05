@@ -11,6 +11,9 @@
 
 #if CONNECTION_ENABLE
 
+#define DEBUG 1
+#include "Debug.h"
+
 #include <cstring>
 
 #define millis xTaskGetTickCount

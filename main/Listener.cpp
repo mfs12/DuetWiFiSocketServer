@@ -11,6 +11,9 @@
 
 #if LISTENER_ENABLE
 
+#define DEBUG 1
+#include "Debug.h"
+
 extern "C"
 {
 	#include "lwip/tcp.h"

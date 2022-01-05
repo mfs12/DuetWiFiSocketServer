@@ -137,7 +137,7 @@ bool Listener::Listen(uint32_t ip, uint16_t port, uint8_t protocol, uint16_t max
 
 	ip_addr_t tempIp;
 	tempIp.u_addr.ip4.addr = ip;
-	tempPcb->so_options |= SOF_REUSEADDR;			// not sure we need this, but the Arduino HTTP server does it
+	tempPcb->so_options |= SOF_REUSEADDR; // allow fast re-use of sockets
 	err_t rc = tcp_bind(tempPcb, &tempIp, port);
 	if (rc != ERR_OK)
 	{

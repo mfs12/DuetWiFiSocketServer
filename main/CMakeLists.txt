@@ -3,6 +3,7 @@ idf_component_register(
     Connection.cpp
     DwssSpiffs.c
     HSPI.cpp
+    vfs_eventfd.c
     Listener.cpp
     Misc.cpp
     Process.cpp

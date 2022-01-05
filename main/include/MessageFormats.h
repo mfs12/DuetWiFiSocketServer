@@ -230,6 +230,7 @@ const int32_t ResponseBufferTooSmall = -9;
 const int32_t ResponseBadReplyFormatVersion = -10;
 const int32_t ResponseBadParameter = -11;
 const int32_t ResponseUnknownError = -12;
+const int32_t ResponseFail = -13;
 
 const size_t MaxRememberedNetworks = 20;
 static_assert((MaxRememberedNetworks + 1) * ReducedWirelessConfigurationDataSize <= MaxDataLength, "Too many remembered networks");

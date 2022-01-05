@@ -3,6 +3,8 @@
 #include <cassert>
 #include <cstring>
 
+#include "Config.h"
+
 extern "C" {
 
 #include "freertos/task.h"
@@ -16,11 +18,8 @@ extern "C" {
 #define DEBUG 0
 #include "Debug.h"
 
-   If you'd rather not, just change the below entries to strings with
-   the config you want - ie #define EXAMPLE_WIFI_SSID "mywifissid"
-*/
-#define WIFI_CLIENT_WIFI_SSID      "ssid"
-#define WIFI_CLIENT_WIFI_PASS      "pwd"
+#define WIFI_CLIENT_WIFI_SSID      CONFIG_WIFI_SSID_DEFAULT
+#define WIFI_CLIENT_WIFI_PASS      CONFIG_WIFI_PASSWORD_DEFAULT
 #define WIFI_CLIENT_MAXIMUM_RETRY  3
 
 /* The event group allows multiple bits for each event, but we only care about two events:

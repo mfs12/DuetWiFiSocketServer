@@ -26,6 +26,9 @@
 #define VERSION_DEBUG	""
 #endif
 
+#define CONFIG_WIFI_SSID_DEFAULT "YOURSSID"
+#define CONFIG_WIFI_PASSWORD_DEFAULT "YOURWIFIPASSWORD"
+
 const char* const firmwareVersion = VERSION_MAIN VERSION_DEBUG VERSION_SLEEP;
 
 // Define the maximum length (bytes) of file upload data per SPI packet. Use a multiple of the SD card sector or cluster size for efficiency.

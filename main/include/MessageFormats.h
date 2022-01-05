@@ -84,14 +84,11 @@ struct MessageHeaderSamToEsp
 	uint8_t formatVersion;
 	NetworkCommand command;		// see above
 	uint8_t socketNumber;		// socket number if it is a socket command, unused if it is a network command
-	uint8_t flags;				// 8-bit parameter specific to some commands e.g. close-after-write
+	uint8_t flags;			// 8-bit parameter specific to some commands e.g. close-after-write
 
 	uint16_t dataLength;		// how long the data part of the request is
 	uint16_t dataBufferAvailable;	// how much data the SAM can receive
-	uint32_t param32;			// this gets sent while the ESP is sending its response
-
-	static const uint8_t FlagCloseAfterWrite = 0x01;
-	static const uint8_t FlagPush = 0x02;
+	uint32_t param32;		// contains response if datalength is zero
 };
 
 const size_t headerDwords = NumDwords(sizeof(MessageHeaderSamToEsp));
@@ -196,11 +193,11 @@ enum class ConnState : uint8_t
 	free = 0,			// not active
 	connecting,			// socket is trying to connect
 	connected,			// socket is connected
-	otherEndClosed,		// the remote end has closed the connection
+	otherEndClosed,			// the remote end has closed the connection
 	aborted,			// an error has occurred
 
 	// The remaining states are not of interest to clients
-	closePending,		// close this socket when sending is complete
+	closePending,			// close this socket when sending is complete
 	closeReady			// other end has closed and we were already closePending
 };
 

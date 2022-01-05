@@ -1,7 +1,7 @@
 #ifndef DEBUG_H
 #define DEBUG_H 1
 
-#include <cstdio>
+#include <stdio.h>
 
 #if DEBUG
 #define debug(fmt, args...)	do { printf("DBG %s(%d): " fmt, __FILE__, __LINE__, ##args); } while (0)

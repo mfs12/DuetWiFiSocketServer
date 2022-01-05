@@ -16,12 +16,16 @@ extern "C" {
 
 #include "driver/gpio.h"
 
+#include "esp_netif.h"
 #include "esp_spi_flash.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
+#include "esp_vfs_eventfd.h"
 
 #include "nvs.h"
 #include "nvs_flash.h"
+
+#include "sys/select.h"
 
 }
 
@@ -79,7 +83,6 @@ static uint32_t lastBlinkTime = 0;
 
 // spi
 static HSPIClass hspi;
-static bool transferReadyChanged = false;
 static const uint32_t TransferReadyTimeout = 10;	// how many milliseconds we allow for the Duet to set TransferReady low after the end of a transaction, before we assume that we missed seeing it
 static uint32_t transferBuffer[NumDwords(MaxDataLength + 1)];
 static const uint32_t StatusReportMillis = 200;
@@ -144,21 +147,51 @@ static void led_blink(void)
 	}
 }
 
-static EventGroupHandle_t globalEventGroup;
-#define APP_EVENT_RRF BIT0
-#define APP_EVENT_WIFI BIT1
-#define APP_EVENT_TCP BIT2
-#define APP_EVENT_ALL (APP_EVENT_RRF | APP_EVENT_WIFI | APP_EVENT_TCP)
+static esp_vfs_eventfd_config_t config = ESP_VFS_EVENTD_CONFIG_DEFAULT();
+
+#define GLOBAL_EVENT_WIFI_CHANGE BIT0 // wifi module needs processing
+#define GLOBAL_EVENT_INT_CHANGE BIT1 // rrf requested
+#define GLOBAL_EVENT_CONN_CHANGE BIT2 // connection changes
+static int globalEventFd = -1;
+
+static void notifyEventChange(int fd, uint64_t event)
+{
+	ssize_t ret;
+
+	ret = write(fd, &event, sizeof(event));
+	if (ret < 0 || ret != sizeof(event))
+	{
+		err("failed to write to eventfd %d %d.\n", ret, errno);
+	}
+}
 
 static void GpioIsrHandler(void *arg)
 {
-	int event = (int)(arg);
-	xEventGroupSetBitsFromISR(globalEventGroup, event, nullptr);
+	notifyEventChange((int)arg, GLOBAL_EVENT_INT_CHANGE);
+}
+
+static void notifyWifiChange(void *arg)
+{
+	debug("\n");
+	notifyEventChange((int)arg, GLOBAL_EVENT_WIFI_CHANGE);
 }
 
 static int app_init(void)
 {
 	esp_err_t err;
+
+	// wifi dependencies
+	tcpip_adapter_init();
+
+	ESP_ERROR_CHECK(esp_event_loop_create_default());
+	ESP_ERROR_CHECK(nvs_flash_init());
+	ESP_ERROR_CHECK(esp_vfs_eventfd_register(&config));
+
+	globalEventFd = eventfd(0, EFD_SUPPORT_ISR);
+	if (globalEventFd < 0)
+	{
+		err("couldn't create eventfd %d.\n", errno);
+	}
 
 	gpio_config_t led_gpio;
 	led_gpio.intr_type = GPIO_INTR_DISABLE;
@@ -218,7 +251,7 @@ static int app_init(void)
 		err("failed to disable gpio isr service.\n");
 		return -1;
 	}
-	gpio_isr_handler_add(SamTfrReadyPin, GpioIsrHandler, (void *)APP_EVENT_RRF);
+	gpio_isr_handler_add(SamTfrReadyPin, GpioIsrHandler, (void *)globalEventFd);
 	if (err)
 	{
 		err("failed to add gpio isr.\n");
@@ -227,43 +260,24 @@ static int app_init(void)
 
 	hspi.InitMaster(SPI_MODE1, defaultClockControl, true);
 
-	globalEventGroup = xEventGroupCreate();
-	if (!globalEventGroup)
-	{
-		err("failed to create gpio event group\n");
-		return -1;
-	}
 
-	// wifi dependencies
-	tcpip_adapter_init();
-	ESP_ERROR_CHECK(esp_event_loop_create_default());
+	wifiClient = new WifiClient(notifyWifiChange, (void *)globalEventFd);
 
-	ESP_ERROR_CHECK(nvs_flash_init());
-
-	wifiClient = new WifiClient(globalEventGroup);
-
-	wifiConfig.ip = 0,
-	wifiConfig.gateway = 0,
-	wifiConfig.netmask = 0,
-	wifiConfig.channel = DefaultWiFiChannel,
-	wifiConfig.mode = WIFI_MODE_STA,
-	SafeStrncpy(wifiConfig.ssid, CONFIG_WIFI_SSID_DEFAULT, sizeof(wifiConfig.ssid));
-	SafeStrncpy(wifiConfig.password, CONFIG_WIFI_PASSWORD_DEFAULT, sizeof(wifiConfig.password));
-
-	wifiClient->SetConfig(&wifiConfig);
-#if 1
-	TcpServer_init();
-
+#if 0
 	Connection::Init();
 	Listener::Init();
+//#else
+	TcpServer_init();
 #endif
+
+	info("Init - Done\n");
 
 	return 0;
 }
 
-static void signalChange(void)
+static void notifyChange(void)
 {
-	// signal status change
+	// notify status change
 	gpio_set_level(EspReqTransferPin, 0);
 	vTaskDelay(10 / portTICK_PERIOD_MS);
 	gpio_set_level(EspReqTransferPin, 1);
@@ -279,17 +293,23 @@ void app_main(void)
 	esp_chip_info(&chip_info);
 
 	info("This is ESP8266 chip with %d CPU cores, WiFi, ", chip_info.cores);
-
 	info("silicon revision %d, ", chip_info.revision);
-
-	info("%uMB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
+	info("%u MB %s flash\n", spi_flash_get_chip_size() / (1024 * 1024),
 			(chip_info.features & CHIP_FEATURE_EMB_FLASH) ? "embedded" : "external");
 
 	app_init();
 
-	info("Init - Done\n");
+#define MY_WIFI_TEST 1
+#if MY_WIFI_TEST
+	wifiConfig.ip = 0,
+	wifiConfig.gateway = 0,
+	wifiConfig.netmask = 0,
+	wifiConfig.channel = DefaultWiFiChannel,
+	wifiConfig.mode = WIFI_MODE_STA,
+	SafeStrncpy(wifiConfig.ssid, CONFIG_WIFI_SSID_DEFAULT, sizeof(wifiConfig.ssid));
+	SafeStrncpy(wifiConfig.password, CONFIG_WIFI_PASSWORD_DEFAULT, sizeof(wifiConfig.password));
 
-#if 1
+	wifiClient->SetConfig(&wifiConfig);
 
 	WifiState oldState = wifiClient->GetStatus();
 
@@ -301,59 +321,94 @@ void app_main(void)
 		err("failed to start client %d\n", err);
 	}
 
-	signalChange();
+#define MY_TCP_TEST 0
+#if MY_TCP_TEST // simple tcp server test
+	while(1) {
+		tcp_server_task(nullptr);
+		err("server task aborted - restarting.\n");
+	}
+#endif
+
+	notifyChange();
 
 	for (;;) {
 		// toggle led
 		led_blink();
 
-		vTaskDelay(10 / portTICK_PERIOD_MS);
-		EventBits_t bits = xEventGroupWaitBits(globalEventGroup, APP_EVENT_ALL,
-					pdTRUE, pdFALSE, 1000 / portTICK_PERIOD_MS);
-		if (!bits)
-		{
-			debug("timeout\n");
-			signalChange();
-			continue;
-		}
+		fd_set readfds;
+		fd_set writefds;
+		fd_set errorfds;
 
-		debug("bits %08x\n", (int)bits);
+		struct timeval timeout = {
+			.tv_sec = 0,
+			.tv_usec = 500000,
+		};
 
-		if (bits & APP_EVENT_WIFI && wifiClient->Process() < 0)
+		FD_ZERO(&readfds);
+		FD_ZERO(&writefds);
+		FD_ZERO(&errorfds);
+
+		FD_SET(globalEventFd, &readfds);
+		FD_SET(globalEventFd, &writefds);
+		FD_SET(globalEventFd, &errorfds);
+
+		int max = globalEventFd + 1;
+
+		int ret = select(max, &readfds, &writefds, &errorfds, &timeout);
+		if (ret < 0)
 		{
-			err("error processing wifiClient.\n");
+			err("select returned an error %d.\n", errno);
 			break;
 		}
 
-		WifiState state = wifiClient->GetStatus();
-		//debug("running...\n");
-		if (bits & APP_EVENT_ALL)
-		{
-			if (bits & (APP_EVENT_WIFI | APP_EVENT_TCP))
-				signalChange();
+		debug("ret %d r %d w %d e %d\n",
+			ret,
+			(int)FD_ISSET(globalEventFd, &readfds),
+			(int)FD_ISSET(globalEventFd, &writefds),
+			(int)FD_ISSET(globalEventFd, &errorfds));
 
-			debug("event %02x wifi state %d -> %d\n", bits, (int)oldState, (int)state);
-			bits = 0;
-			oldState = state;
-		}
-		else
+		if (!FD_ISSET(globalEventFd, &readfds) && !FD_ISSET(globalEventFd, &writefds) && !FD_ISSET(globalEventFd, &errorfds))
 		{
-			debug("waiting for event...\n");
+			debug("select timeout.\n");
 			continue;
 		}
+
+		uint64_t event;
+		ret = read(globalEventFd, &event, sizeof(event));
+		if (ret < 0)
+		{
+			err("failed to read globalEventFd %d.\n", errno);
+			break;
+		}
+
+		if (0)
+			debug("received change event 0x%04x\n", (int)event);
+
+		if (event & GLOBAL_EVENT_WIFI_CHANGE)
+		{
+			if (wifiClient->Process() < 0)
+			{
+				err("error processing wifiClient.\n");
+				break;
+			}
+
+			WifiState state = wifiClient->GetStatus();
+			if (oldState != state)
+			{
+				debug("wifi state %d -> %d\n", (int)oldState, (int)state);
+				oldState = state;
+
+				notifyChange();
+			}
+		}
 #if 1
-		// activate spi CS
-		gpio_set_level(SamCsPin, 0);
-		vTaskDelay(10 / portTICK_PERIOD_MS);
+		if (event == 0 || event & GLOBAL_EVENT_INT_CHANGE)
+		{
+			ProcessRequest();
 
-		ProcessRequest();
-
-		lastSpiTransferTime = millis();
-
-		// deactivate spi CS
-		gpio_set_level(SamCsPin, 1);
-
-		debug("processing - done\n");
+			lastSpiTransferTime = millis();
+			//debug("processing - done\n");
+		}
 #endif
 	}
 #else
@@ -959,7 +1014,6 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 		resp = ProcessMiscRequest(cmd, transferBuffer, len);
 	}
 #endif
-
 	debug("processed cmd %d len %d resp %d\n", (int)cmd, (int)len, resp);
 
 	if (resp <= 0)
@@ -970,8 +1024,8 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 	}
 	else if (resp > 0)
 	{
-		debug("cmd %d resp %d\n", (int)cmd, resp);
-
+		if (cmd != NetworkCommand::connGetStatus)
+			debug("processed cmd %d len %d resp %d\n", (int)cmd, (int)len, resp);
 		SendResponse(transferBuffer, resp);
 	}
 

@@ -23,13 +23,15 @@ private:
 	int Scan();
 	int GetScanResults();
 public:
-	WifiClient(EventGroupHandle_t global);
+	WifiClient(void (*callback)(void *arg), void *callbackArg);
 	~WifiClient();
 
 	int connectRetryNum = 0; // should be private
 
 	EventGroupHandle_t eventGroup; // should be private
-	EventGroupHandle_t eventGlobal; // should be private
+
+	void (*notifyChangeCb)(void *arg); // callback to signal need to call Process
+	void *notifyChangeArg;
 
 	int SetConfig(const WifiConfigData *config);
 	const WifiConfigData *GetConfig();

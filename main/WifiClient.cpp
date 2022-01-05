@@ -52,16 +52,18 @@ void WifiClient::EventHandler(void* arg, esp_event_base_t event_base,
 		ESP_LOGI(TAG, "got ip:%s", ip4addr_ntoa(&event->ip_info.ip));
 		client->connectRetryNum = 0;
 		xEventGroupSetBits(client->eventGroup, WIFI_CONNECTED_BIT);
-		xEventGroupSetBits(client->eventGlobal, (1 << 1));
+		if (client->notifyChangeCb)
+			client->notifyChangeCb(client->notifyChangeArg);
 	}
 }
 
 
-WifiClient::WifiClient(EventGroupHandle_t global)
+WifiClient::WifiClient(void (*callback)(void *arg), void *callbackArg)
 {
-	state = WifiState::disabled;
+	state = WifiState::idle;
 
-	eventGlobal = global;
+	notifyChangeCb = callback;
+	notifyChangeArg = callbackArg;
 
 	eventGroup = xEventGroupCreate();
 	if (eventGroup == nullptr)
@@ -149,7 +151,7 @@ int WifiClient::Start()
 
 	err = esp_wifi_start();
 
-	debug(TAG, "starting - done.\n");
+	debug("starting - done.\n");
 
 	return err;
 }
@@ -180,7 +182,7 @@ int WifiClient::Process()
 
 	if (bits == 0)
 	{
-		//debug("nothing to do\n");
+		debug("nothing to do\n");
 		return 0;
 	}
 

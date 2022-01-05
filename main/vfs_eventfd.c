@@ -271,7 +271,7 @@ static ssize_t event_write(int fd, const void *data, size_t size)
 
         if (s_events[fd].fd == fd) {
             s_events[fd].is_set = true;
-            s_events[fd].value += *val;
+            s_events[fd].value |= *val;
             ret = size;
             trigger_select_for_event(&s_events[fd]);
 

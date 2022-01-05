@@ -918,6 +918,10 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 {
 	NetworkCommand cmd = NetworkCommand::nullCommand;
 
+	// activate spi CS
+	gpio_set_level(SamCsPin, 0);
+	vTaskDelay(10 / portTICK_PERIOD_MS);
+
 	// Begin the transaction
 	hspi.beginTransaction();
 
@@ -972,6 +976,10 @@ static void ICACHE_RAM_ATTR ProcessRequest()
 	}
 
 	hspi.endTransaction();
+
+	// deactivate spi CS
+	gpio_set_level(SamCsPin, 1);
+
 }
 
 static void arduino_setup(void)
